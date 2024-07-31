@@ -15,7 +15,7 @@ class InvertedPendulum(ControlledSDE):
     def __init__(self, policy: policy_function, maximum_torque: float = 6.0,
                  pendulum_length: float = 0.5, ball_mass: float = 0.15,
                  friction: float = 0.1, gravity: float = 9.81,
-                 volatility_scale: float = 1.0):
+                 volatility_scale: float = 2.0):
         super(InvertedPendulum, self).__init__(
             policy, "diagonal", "ito")
         self.a1 = gravity / pendulum_length
@@ -30,13 +30,14 @@ class InvertedPendulum(ControlledSDE):
     def drift(self, t, x, u):
         phi, theta = torch.split(x, split_size_or_sections=(1, 1), dim=1)
 
-        f_phi = self.a1 * torch.sin(theta) + self.a2 * u - self.a3
+        f_phi = self.a1 * torch.sin(theta) + self.a2 * u - self.a3 * phi
         f_theta = phi
         return torch.cat([f_phi, f_theta], dim=1)
 
     def diffusion(self, t, x, u):
-        phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
-        g_phi = self.sigma * phi
+        # phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
+        # g_phi = self.sigma * phi
+        g_phi = torch.full((x.shape[0], 1), self.sigma)
         return torch.cat([g_phi, torch.zeros_like(g_phi)], dim=1)
 
     def analytical_sample(self, x0, ts, int_f, int_g):
