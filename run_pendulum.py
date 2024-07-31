@@ -35,8 +35,7 @@ def policy_do_nothing(t, x):
 
 # initialize the controlled SDE
 # In this example, there is no extra noise
-sde = controlled_sde.InvertedPendulum(
-    policy_do_nothing, volatility_scale=2.0)
+sde = controlled_sde.InvertedPendulum(policy_do_nothing)
 
 # Initialize the batch of starting states
 x0 = torch.tensor([starting_speed, starting_angle],
