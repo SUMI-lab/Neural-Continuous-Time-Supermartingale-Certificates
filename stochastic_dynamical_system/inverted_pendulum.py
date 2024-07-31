@@ -1,5 +1,6 @@
 import torch
 from .controlled_sde import ControlledSDE
+from .type_hints import policy_function
 
 
 class InvertedPendulum(ControlledSDE):
@@ -10,10 +11,11 @@ class InvertedPendulum(ControlledSDE):
     the maximum torque afterwards.
     """
 
-    def __init__(self, pendulum_length: float = 0.5, ball_mass: float = 0.15,
-                 friction: float = 0.1, maximum_torque: float = 6.0,
-                 gravity: float = 9.81, volatility_scale: float = 0.1):
-        super(InvertedPendulum, self).__init__("diagonal", "ito")
+    def __init__(self, policy: policy_function, maximum_torque: float = 6.0,
+                 pendulum_length: float = 0.5, ball_mass: float = 0.15,
+                 friction: float = 0.1, gravity: float = 9.81,
+                 volatility_scale: float = 0.1):
+        super(InvertedPendulum, self).__init__(policy, "diagonal", "ito")
         self.a1 = gravity / pendulum_length
         self.a2 = maximum_torque / ball_mass / (pendulum_length ** 2)
         self.a3 = friction / ball_mass / (pendulum_length ** 2)

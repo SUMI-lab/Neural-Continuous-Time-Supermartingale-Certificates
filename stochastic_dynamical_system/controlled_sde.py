@@ -2,29 +2,33 @@ from abc import ABC, abstractmethod
 import torch
 import torchsde
 import torchsde.types
-from .type_hints import tensor, tensors, vector
+from .type_hints import tensor, tensors, vector, policy_function
 
 
 class ControlledSDE(ABC):
-    def __init__(self, noise_type: str = "general", sde_type: str = "ito"):
+    def __init__(self, policy: policy_function, noise_type: str = "general", sde_type: str = "ito"):
         super(ControlledSDE, self).__init__()
+        self.policy = policy
         self.noise_type = noise_type
         self.sde_type = sde_type
 
     @abstractmethod
-    def drift(self, t, x: tensor, u: tensor) -> tensor:
+    def drift(self, t: vector, x: tensor, u: tensor) -> tensor:
         pass
 
     @abstractmethod
-    def diffusion(self, t, x: tensor, u: tensor) -> tensor:
+    def diffusion(self, t: vector, x: tensor, u: tensor) -> tensor:
         pass
 
-    def f(self, t, x: tensor) -> tensor:
-        u = 0
+    def _get_u(self, t: vector, x: tensor):
+        return torch.unsqueeze(self.policy(t, x), 1)
+
+    def f(self, t: vector, x: tensor) -> tensor:
+        u = self._get_u(t, x)
         return torch.cat(self.drift(t, x, u), dim=1)
 
-    def g(self, t, x: tensor) -> tensor:
-        u = 0
+    def g(self, t: vector, x: tensor) -> tensor:
+        u = self._get_u(t, x)
         return torch.cat(self.diffusion(t, x, u), dim=1)
 
     @torch.no_grad()
