@@ -34,5 +34,5 @@ class ControlledSDE(ABC):
         return self.diffusion(t, x, u)
 
     @torch.no_grad()
-    def sample(self, x0: tensor, ts: vector, u: tensor) -> tensor | tensors:
+    def sample(self, x0: tensor, ts: vector) -> tensor | tensors:
         return torchsde.sdeint(self, x0, ts, method=self.method)
