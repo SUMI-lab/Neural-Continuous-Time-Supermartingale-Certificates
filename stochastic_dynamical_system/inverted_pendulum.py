@@ -6,6 +6,9 @@ from .controlled_sde import ControlledSDE
 class InvertedPendulum(ControlledSDE):
     """
     Stochastic inverted pendulum.
+
+    The control signal is normalized (i.e. in [-1,1]) and multiplied by
+    the maximum torque afterwards.
     """
 
     def __init__(self, pendulum_length: float = 0.5, ball_mass: float = 0.15,
