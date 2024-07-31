@@ -27,9 +27,9 @@ class InvertedPendulum(ControlledSDE):
 
         f_phi = self.a1 * torch.sin(theta) + self.a2 * u - self.a3
         f_theta = phi
-        return f_phi, f_theta
+        return torch.cat([f_phi, f_theta], dim=1)
 
     def diffusion(self, t, x, u):
         phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
         g_phi = self.sigma * phi
-        return g_phi, torch.zeros_like(g_phi)
+        return torch.cat([g_phi, torch.zeros_like(g_phi)], dim=1)

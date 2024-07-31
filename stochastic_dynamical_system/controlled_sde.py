@@ -23,15 +23,15 @@ class ControlledSDE(ABC):
         pass
 
     def _get_u(self, t: vector, x: tensor):
-        return torch.unsqueeze(self.policy(t, x), 1)
+        return self.policy(t, x)
 
     def f(self, t: vector, x: tensor) -> tensor:
         u = self._get_u(t, x)
-        return torch.cat(self.drift(t, x, u), dim=1)
+        return self.drift(t, x, u)
 
     def g(self, t: vector, x: tensor) -> tensor:
         u = self._get_u(t, x)
-        return torch.cat(self.diffusion(t, x, u), dim=1)
+        return self.diffusion(t, x, u)
 
     @torch.no_grad()
     def sample(self, x0: tensor, ts: vector, u: tensor) -> tensor | tensors:
