@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: Neural Supermartingale Certificates for Reach-Stay-Avoidance in Continuous Time
+message: >-
+  If you use this software, please cite: (a) the original paper,
+  (b) this software using the metadata from this file.
+type: software
+authors:
+  - given-names: Anonymous
+    family-names: Submission
+    email: submission@anonymo.us
+    affiliation: Anonymous Affiliation
+    orcid: 'https://orcid.org/0000-0000-0000-0000'
+repository-code: 'https://link-to-the-published-code'
+abstract: >-
+  This software contains code for the paper _Neural Supermartingale Certificates for Reach-Stay-Avoidance in Continuous Time_
+keywords:
+  - Neural supermartingale certificate
+  - Stochastic process theory
+  - Stochastic differential equations
+  - Reach-stay-avoidance
+  - Formal methods for neural networks
+license: MIT
