@@ -15,7 +15,8 @@ class InvertedPendulum(ControlledSDE):
                  pendulum_length: float = 0.5, ball_mass: float = 0.15,
                  friction: float = 0.1, gravity: float = 9.81,
                  volatility_scale: float = 0.1):
-        super(InvertedPendulum, self).__init__(policy, "diagonal", "ito")
+        super(InvertedPendulum, self).__init__(
+            policy, "euler", "diagonal", "ito")
         self.a1 = gravity / pendulum_length
         self.a2 = maximum_torque / ball_mass / (pendulum_length ** 2)
         self.a3 = friction / ball_mass / (pendulum_length ** 2)
