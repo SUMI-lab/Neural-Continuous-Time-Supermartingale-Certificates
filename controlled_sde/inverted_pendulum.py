@@ -33,3 +33,9 @@ class InvertedPendulum(ControlledSDE):
         phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
         g_phi = self.sigma * phi
         return torch.cat([g_phi, torch.zeros_like(g_phi)], dim=1)
+
+    def analytical_sample(self, x0, ts):
+        raise NotImplementedError(
+            ("No analytical solution exists for stochastic inverted pendulum; "
+             "please, use another method instead, for example, 'euler'.")
+        )

@@ -35,6 +35,12 @@ class ControlledSDE(ABC):
     @torch.no_grad()
     def sample(self, x0: tensor, ts: vector,
                method: str = "euler", dt: str | float = "auto") -> tensor | tensors:
+        if method == "analytical":
+            return self.analytical_sample(x0, ts)
         if dt == "auto":
             dt = torch.max(ts).item() / 1e3
         return torchsde.sdeint(self, x0, ts, method=method, dt=dt)
+
+    @abstractmethod
+    def analytical_sample(self, x0: tensor, ts: vector):
+        pass
