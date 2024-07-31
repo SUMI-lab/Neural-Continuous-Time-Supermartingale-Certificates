@@ -14,7 +14,7 @@ class InvertedPendulum(ControlledSDE):
     def __init__(self, policy: policy_function, maximum_torque: float = 6.0,
                  pendulum_length: float = 0.5, ball_mass: float = 0.15,
                  friction: float = 0.1, gravity: float = 9.81,
-                 volatility_scale: float = 0.1):
+                 volatility_scale: float = 1.0):
         super(InvertedPendulum, self).__init__(
             policy, "diagonal", "ito")
         self.a1 = gravity / pendulum_length
@@ -34,7 +34,7 @@ class InvertedPendulum(ControlledSDE):
         g_phi = self.sigma * phi
         return torch.cat([g_phi, torch.zeros_like(g_phi)], dim=1)
 
-    def analytical_sample(self, x0, ts):
+    def analytical_sample(self, x0, ts, int_f, int_g):
         raise NotImplementedError(
             ("No analytical solution exists for stochastic inverted pendulum; "
              "please, use another method instead, for example, 'euler'.")

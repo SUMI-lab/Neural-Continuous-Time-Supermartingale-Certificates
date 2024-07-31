@@ -6,3 +6,4 @@ type tensor = Tensor
 type tensors = Sequence[tensor]
 type vector = Sequence[float] | tensor
 type policy_function = Callable[[vector, tensor], tensor]
+type policy_integral = Callable[[float | tensor], tensor] | None

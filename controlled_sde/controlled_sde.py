@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import torch
 import torchsde
 import torchsde.types
-from .type_hints import tensor, tensors, vector, policy_function
+from .type_hints import tensor, tensors, vector, policy_function, policy_integral
 
 
 class ControlledSDE(ABC):
@@ -34,13 +34,14 @@ class ControlledSDE(ABC):
 
     @torch.no_grad()
     def sample(self, x0: tensor, ts: vector,
-               method: str = "euler", dt: str | float = "auto") -> tensor | tensors:
+               method: str = "euler", dt: str | float = "auto",
+               int_f: policy_integral = None, int_g: policy_integral = None) -> tensor | tensors:
         if method == "analytical":
-            return self.analytical_sample(x0, ts)
+            return self.analytical_sample(x0, ts, int_f, int_g)
         if dt == "auto":
             dt = torch.max(ts).item() / 1e3
         return torchsde.sdeint(self, x0, ts, method=method, dt=dt)
 
     @abstractmethod
-    def analytical_sample(self, x0: tensor, ts: vector):
+    def analytical_sample(self, x0: tensor, ts: vector, int_f: policy_integral, int_g: policy_integral):
         pass

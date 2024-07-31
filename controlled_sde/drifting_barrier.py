@@ -19,5 +19,5 @@ class DriftingBarrier(ControlledSDE):
     def diffusion(self, t, x, u):
         return u
 
-    def analytical_sample(self, x0, ts):
+    def analytical_sample(self, x0, ts, int_f, int_g):
         raise NotImplementedError
