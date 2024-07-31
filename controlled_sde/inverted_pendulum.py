@@ -37,7 +37,7 @@ class InvertedPendulum(ControlledSDE):
     def diffusion(self, t, x, u):
         # phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
         # g_phi = self.sigma * phi
-        g_phi = torch.full((x.shape[0], 1), self.sigma)
+        g_phi = torch.full((x.shape[0], 1), self.sigma, device=x.device)
         return torch.cat([g_phi, torch.zeros_like(g_phi)], dim=1)
 
     def analytical_sample(self, x0, ts, int_f, int_g):
@@ -54,6 +54,9 @@ class InvertedPendulum(ControlledSDE):
         except:
             raise ImportError(
                 "pygame is not installed, run `pip install pygame`")
+
+        sample_paths = sample_paths.cpu()
+        ts = ts.cpu()
 
         batch_size = sample_paths.shape[1]
         n_per_axis = int(np.ceil(np.sqrt(batch_size)))
