@@ -6,13 +6,12 @@ from .type_hints import tensor, tensors, vector, policy_function
 
 
 class ControlledSDE(ABC):
-    def __init__(self, policy: policy_function, method: str,
+    def __init__(self, policy: policy_function,
                  noise_type: str, sde_type: str = "ito"):
         super(ControlledSDE, self).__init__()
         self.policy = policy
         self.noise_type = noise_type
         self.sde_type = sde_type
-        self.method = method
 
     @abstractmethod
     def drift(self, t: vector, x: tensor, u: tensor) -> tensor:
@@ -34,5 +33,8 @@ class ControlledSDE(ABC):
         return self.diffusion(t, x, u)
 
     @torch.no_grad()
-    def sample(self, x0: tensor, ts: vector) -> tensor | tensors:
-        return torchsde.sdeint(self, x0, ts, method=self.method)
+    def sample(self, x0: tensor, ts: vector,
+               method: str = "euler", dt: str | float = "auto") -> tensor | tensors:
+        if dt == "auto":
+            dt = torch.max(ts).item() / 1e3
+        return torchsde.sdeint(self, x0, ts, method=method, dt=dt)

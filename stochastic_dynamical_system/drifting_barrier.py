@@ -10,7 +10,7 @@ class DriftingBarrier(ControlledSDE):
 
     def __init__(self, policy: policy_function, drift: float = 0.4):
         super(DriftingBarrier, self).__init__(
-            policy, "srk", "diagonal", "ito")
+            policy, "diagonal", "ito")
         self.a = drift
 
     def drift(self, t, x, u):
