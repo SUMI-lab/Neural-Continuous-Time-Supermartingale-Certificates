@@ -75,7 +75,8 @@ class InvertedPendulum(ControlledSDE):
             for i in range(batch_size):
                 state = angles[i]
 
-                x, y = divmod(i, n_per_axis)
+                y, x = divmod(i, n_per_axis)
+                y = n_per_axis - y - 1
                 offset_x = self.screen_dim * (2 * x + 1) // (2 * n_per_axis)
                 offset_y = self.screen_dim * (2 * y + 1) // (2 * n_per_axis)
 
