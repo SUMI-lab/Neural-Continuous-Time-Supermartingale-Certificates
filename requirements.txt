@@ -1,7 +1,9 @@
+gymnasium==0.29.1
 matplotlib==3.9.1
 numpy==2.0.1
 pygame==2.6.0
 scipy==1.14.0
 setuptools==72.1.0
 torch==2.4.0
+torchrl==0.5.0
 torchsde==0.2.6
