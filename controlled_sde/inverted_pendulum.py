@@ -87,15 +87,15 @@ class InvertedPendulum(ControlledSDE):
         sample_paths = sample_paths.cpu()
         ts = ts.cpu()
 
-        batch_size = sample_paths.shape[1]
-        n_per_axis = int(np.ceil(np.sqrt(batch_size)))
-        bound = 1.5
-        scale = screen_dim / (bound * 2) / n_per_axis
-
         screen_dim = self.rendering_data.screen_dim
         screen = self.rendering_data.screen
         clock = self.rendering_data.clock
         surf = self.rendering_data.surf
+
+        batch_size = sample_paths.shape[1]
+        n_per_axis = int(np.ceil(np.sqrt(batch_size)))
+        bound = 1.5
+        scale = screen_dim / (bound * 2) / n_per_axis
 
         for time, time_next, angles in zip(ts, torch.roll(ts, -1), sample_paths[:, :, 1].squeeze()):
 
