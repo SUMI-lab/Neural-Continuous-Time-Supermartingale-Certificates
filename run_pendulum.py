@@ -1,7 +1,9 @@
 import torch
+import torch.nn as nn
 import numpy.random as npr
 import matplotlib.pyplot as plt
 import controlled_sde
+from rl_agent import TanhPolicy
 
 
 # Seed the random number generators
@@ -10,11 +12,11 @@ torch.manual_seed(seeds[0])
 npr.seed(seeds[1])
 
 DEVICE_STR = "cpu"  # Torch device
-BATCH_SIZE = 64     # how many environments to run in parallel
-DURATION = 5        # seconds
-FPS = 60            # frames per second
+BATCH_SIZE = 16     # how many environments to run in parallel
+DURATION = 60       # seconds
+FPS = 20            # frames per second
 
-STARTING_ANGLE = torch.pi/8  # starting angle for each sample path
+STARTING_ANGLE = torch.pi    # starting angle for each sample path
 STARTING_SPEED = 0.0         # starting angular velocity
 T_SIZE = DURATION * FPS + 1  # number of time steps for each sample path
 
@@ -40,13 +42,29 @@ def policy_do_nothing(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor
     Returns:
         torch.Tensor: control (a vector of zeros)
     """
-    # this policy is always zero and does nothing
     return torch.zeros((x.size(0),), device=device).unsqueeze(1)
+
+
+rl_policy_net = TanhPolicy(1, 64)
+rl_policy_net.load_state_dict(torch.load("rl_agent/pendulum_policy.pt"))
+
+
+def rl_policy(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    """A trained RL-based policy.
+
+    Args:
+        _t (float | torch.Tensor): time
+        x (torch.Tensor): state
+
+    Returns:
+        torch.Tensor: control (a vector of zeros)
+    """
+    return rl_policy_net(x)
 
 
 # initialize the controlled SDE
 # In this example, there is no extra noise
-sde = controlled_sde.InvertedPendulum(policy_do_nothing)
+sde = controlled_sde.InvertedPendulum(rl_policy)
 
 # Initialize the batch of starting states
 x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
