@@ -1,23 +1,23 @@
-import torch
+"""Provides the drifting barrier SDE."""
+
 from .controlled_sde import ControlledSDE
 from .type_hints import policy_function
 
 
 class DriftingBarrier(ControlledSDE):
     """
-    Stochastic drifting barrier.
+    Stochastic drifting barrier SDE from the paper.
     """
 
     def __init__(self, policy: policy_function, drift: float = 0.4):
-        super(DriftingBarrier, self).__init__(
-            policy, "diagonal", "ito")
+        super().__init__(policy, "diagonal", "ito")
         self.a = drift
 
-    def drift(self, t, x, u):
+    def drift(self, _t, x, _u):
         return self.a * x
 
-    def diffusion(self, t, x, u):
+    def diffusion(self, _t, _x, u):
         return u
 
-    def analytical_sample(self, x0, ts, int_f, int_g):
+    def analytical_sample(self, _x0, _ts, **kwargs):
         raise NotImplementedError

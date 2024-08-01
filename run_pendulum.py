@@ -30,11 +30,11 @@ if DEVICE_STR == "auto":
 device = torch.device(DEVICE_STR)
 
 
-def policy_do_nothing(t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+def policy_do_nothing(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     """A policy that performs zero-th action every time (does nothing).
 
     Args:
-        t (float | torch.Tensor): time
+        _t (float | torch.Tensor): time
         x (torch.Tensor): state
 
     Returns:
