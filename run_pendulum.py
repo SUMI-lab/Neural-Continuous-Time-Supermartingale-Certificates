@@ -1,34 +1,45 @@
-import controlled_sde
 import torch
 import numpy.random as npr
 import matplotlib.pyplot as plt
+import controlled_sde
 
+
+# Seed the random number generators
 seeds = npr.randint(1, 1e5, size=(2,))
 torch.manual_seed(seeds[0])
 npr.seed(seeds[1])
 
-device = "cpu"   # Torch device
-batch_size = 64  # how many environments to run in parallel
-duration = 5     # seconds
-fps = 60         # frames per second
+DEVICE_STR = "cpu"  # Torch device
+BATCH_SIZE = 64     # how many environments to run in parallel
+DURATION = 5        # seconds
+FPS = 60            # frames per second
 
-starting_angle = torch.pi/8  # starting angle for each sample path
-starting_speed = 0.0         # starting angular velocity
-t_size = duration * fps + 1  # number of time steps for each sample path
+STARTING_ANGLE = torch.pi/8  # starting angle for each sample path
+STARTING_SPEED = 0.0         # starting angular velocity
+T_SIZE = DURATION * FPS + 1  # number of time steps for each sample path
 
 
-if device == "auto":
+if DEVICE_STR == "auto":
     if torch.cuda.is_available() and torch.backends.cuda.is_built():
-        device = "cuda"
+        DEVICE_STR = "cuda"
     elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-        device = "mps"
+        DEVICE_STR = "mps"
     else:
-        device = "cpu"
+        DEVICE_STR = "cpu"
 
-device = torch.device(device)
+device = torch.device(DEVICE_STR)
 
 
-def policy_do_nothing(t, x):
+def policy_do_nothing(t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    """A policy that performs zero-th action every time (does nothing).
+
+    Args:
+        t (float | torch.Tensor): time
+        x (torch.Tensor): state
+
+    Returns:
+        torch.Tensor: control (a vector of zeros)
+    """
     # this policy is always zero and does nothing
     return torch.zeros((x.size(0),), device=device).unsqueeze(1)
 
@@ -38,9 +49,9 @@ def policy_do_nothing(t, x):
 sde = controlled_sde.InvertedPendulum(policy_do_nothing)
 
 # Initialize the batch of starting states
-x0 = torch.tensor([starting_speed, starting_angle],
-                  device=device).expand(batch_size, -1)
-ts = torch.linspace(0, duration, t_size, device=device)
+x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
+                  device=device).expand(BATCH_SIZE, -1)
+ts = torch.linspace(0, DURATION, T_SIZE, device=device)
 
 sample_paths = sde.sample(x0, ts, method="srk").squeeze()
 plot_data = sample_paths.cpu().numpy()
@@ -51,3 +62,4 @@ ax.plot(plot_data[:, :, 1], plot_data[:, :, 0])
 plt.show()
 
 sde.render(sample_paths, ts)
+sde.close()
