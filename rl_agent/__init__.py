@@ -1,4 +1,4 @@
 from .policy import TanhPolicy
 
 
-__all__ = "TanhPolicy"
+__all__ = ["TanhPolicy"]
