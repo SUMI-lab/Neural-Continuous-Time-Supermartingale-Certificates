@@ -34,9 +34,9 @@ class Sampler(ABC):
         Returns:
             numpy.ndarray: the sampled points
         """
-        ln_n = np.ln(n)
-        scale = dt / (ln_n - np.ln(n-1))
-        points = scale * (ln_n - np.ln([n-i for i in range(n)]))
+        ln_n = np.log(n)
+        scale = dt / (ln_n - np.log(n-1))
+        points = scale * (ln_n - np.log([n-i for i in range(n)]))
         return points
 
     def sample_space(self, n: int = 100) -> np.ndarray:
