@@ -46,7 +46,11 @@ def policy_do_nothing(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor
 
 
 rl_policy_net = TanhPolicy(1, 64)
-rl_policy_net.load_state_dict(torch.load("rl_agent/pendulum_policy.pt"))
+rl_policy_net.load_state_dict(torch.load(
+    "rl_agent/pendulum_policy.pt",
+    map_location=device,
+    weights_only=True
+))
 
 
 def rl_policy(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
