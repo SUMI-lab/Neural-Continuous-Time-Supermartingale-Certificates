@@ -7,8 +7,8 @@ from .sampler import Sampler
 
 class SobolSampler(Sampler):
     """
-    A base class for samplers of points in time [0, Inf) and
-    space (l-dimensional boxes).
+    A class for sampling of points in time [0, Inf) and
+    space (l-dimensional boxes) using Sobol sequences for space.
     """
 
     def __init__(self, low: Sequence[float], high: Sequence[float]):
