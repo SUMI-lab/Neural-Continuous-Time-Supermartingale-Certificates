@@ -16,4 +16,9 @@ class SobolSampler(Sampler):
         self.qmc_sampler = qmc.Sobol(self.n_dim, scramble=False)
 
     def sample_from_unit_box(self, n: int = 100) -> np.ndarray:
-        return self.qmc_sampler.random(n)
+        # By default, Sobol sequence does not include the upper bound,
+        # we can fix this by rescaling appropriately.
+        pow2 = 2 ** np.ceil(np.log2(n))  # power of two greater or equal to n
+        scaling_factor = pow2 / (pow2 - 1)
+
+        return self.qmc_sampler.random(n) * scaling_factor
