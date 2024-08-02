@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import torch
 import torchsde
 import torchsde.types
-from .type_hints import tensor, tensors, vector, policy_function
+from .type_hints import tensor, tensors, vector, tensor_function
 
 
 class ControlledSDE(ABC):
@@ -12,7 +12,7 @@ class ControlledSDE(ABC):
     The base class for controlled SDEs.
     """
 
-    def __init__(self, policy: policy_function,
+    def __init__(self, policy: tensor_function,
                  noise_type: str, sde_type: str = "ito"):
         super().__init__()
         self.policy = policy

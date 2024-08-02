@@ -4,7 +4,7 @@ import dataclasses
 import torch
 import numpy as np
 from .controlled_sde import ControlledSDE
-from .type_hints import policy_function, tensor
+from .type_hints import tensor_function, tensor
 
 
 @dataclasses.dataclass
@@ -33,7 +33,7 @@ class InvertedPendulum(ControlledSDE):
     the maximum torque afterwards.
     """
 
-    def __init__(self, policy: policy_function,
+    def __init__(self, policy: tensor_function,
                  pendulum_data: PendulumData = PendulumData(
                      maximum_torque=6.0,
                      pendulum_length=0.5,

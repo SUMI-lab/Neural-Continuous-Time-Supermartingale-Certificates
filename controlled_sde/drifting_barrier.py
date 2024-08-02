@@ -1,7 +1,7 @@
 """Provides the drifting barrier SDE."""
 
 from .controlled_sde import ControlledSDE
-from .type_hints import policy_function
+from .type_hints import tensor_function
 
 
 class DriftingBarrier(ControlledSDE):
@@ -9,7 +9,7 @@ class DriftingBarrier(ControlledSDE):
     Stochastic drifting barrier SDE from the paper.
     """
 
-    def __init__(self, policy: policy_function, drift: float = 0.4):
+    def __init__(self, policy: tensor_function, drift: float = 0.4):
         super().__init__(policy, "diagonal", "ito")
         self.a = drift
 
