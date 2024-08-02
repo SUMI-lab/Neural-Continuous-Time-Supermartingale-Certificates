@@ -25,6 +25,14 @@ class PendulumData:
     friction: float
 
 
+default_pendulum_data = PendulumData(
+    maximum_torque=6.0,
+    pendulum_length=0.5,
+    ball_mass=0.15,
+    friction=0.1
+)
+
+
 class InvertedPendulum(ControlledSDE):
     """
     Stochastic inverted pendulum.
@@ -34,12 +42,7 @@ class InvertedPendulum(ControlledSDE):
     """
 
     def __init__(self, policy: tensor_function,
-                 pendulum_data: PendulumData = PendulumData(
-                     maximum_torque=6.0,
-                     pendulum_length=0.5,
-                     ball_mass=0.15,
-                     friction=0.1
-                 ),
+                 pendulum_data: PendulumData = default_pendulum_data,
                  gravity: float = 9.81,
                  volatility_scale: float = 2.0):
         super().__init__(policy, "diagonal", "ito")
