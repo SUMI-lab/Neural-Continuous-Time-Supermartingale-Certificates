@@ -1,15 +1,16 @@
 import torch
-import torch.nn as nn
 import numpy.random as npr
 import matplotlib.pyplot as plt
 import controlled_sde
 from rl_agent import TanhPolicy
-
+import stochastic_rsa as rsa
 
 # Seed the random number generators
 seeds = npr.randint(1, 1e5, size=(2,))
 torch.manual_seed(seeds[0])
 npr.seed(seeds[1])
+torch.set_default_dtype(torch.float32)
+
 
 DEVICE_STR = "cpu"  # Torch device
 BATCH_SIZE = 16     # how many environments to run in parallel
@@ -45,12 +46,13 @@ def policy_do_nothing(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor
     return torch.zeros((x.size(0),), device=device).unsqueeze(1)
 
 
-rl_policy_net = TanhPolicy(1, 64)
+rl_policy_net = TanhPolicy(1, 64, device=device)
 rl_policy_net.load_state_dict(torch.load(
     "rl_agent/pendulum_policy.pt",
     map_location=device,
     weights_only=True
 ))
+rl_policy_net.requires_grad_(False)
 
 
 def rl_policy(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
@@ -67,8 +69,48 @@ def rl_policy(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
 
 
 # initialize the controlled SDE
-# In this example, there is no extra noise
 sde = controlled_sde.InvertedPendulum(rl_policy)
+
+MAX_SPEED = 8.0
+MAX_ANGLE = torch.pi
+
+high = torch.tensor([MAX_SPEED, MAX_ANGLE], device=device)
+sampler = rsa.sampling.SobolSampler(-high.cpu().numpy(),
+                                    high.cpu().numpy())
+net = rsa.CertificateNet(device=device)
+
+interest_set = rsa.membership_sets.MembershipSet(
+    lambda x: torch.all(torch.abs(x) <= high, dim=1)
+)
+
+initial_bound = torch.tensor([0.5, torch.pi/8], device=device)
+initial_mid = torch.tensor([STARTING_SPEED, STARTING_ANGLE], device=device)
+initial_set = rsa.membership_sets.MembershipSet(
+    lambda x: torch.all(torch.abs(x - initial_mid) <= initial_bound, dim=1)
+)
+target_set = rsa.membership_sets.SublevelSet(
+    lambda x:
+    torch.norm(x / torch.tensor([1.0, torch.pi/0.4],
+               device=device), float('inf'), dim=1),
+    1.0
+)
+unsafe_set = rsa.membership_sets.MembershipSet(
+    lambda x: torch.abs(x[:, 0]) >= 7.0
+)
+reach_avoid_probability, stay_probability = 0.9, 0.9
+
+spec = rsa.Specification(
+    True,
+    interest_set,
+    initial_set,
+    unsafe_set,
+    target_set,
+    reach_avoid_probability,
+    stay_probability
+)
+
+certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
+certificate.train()
 
 # Initialize the batch of starting states
 x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
@@ -80,7 +122,8 @@ plot_data = sample_paths.cpu().numpy()
 
 fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
 ax.set_theta_offset(torch.pi/2)
-ax.plot(plot_data[:, :, 1], plot_data[:, :, 0])
+fig, ax = plt.subplots()
+ax.plot(plot_data[:, :, 0], plot_data[:, :, 1])
 plt.show()
 
 sde.render(sample_paths, ts)
