@@ -1,5 +1,4 @@
 """Provides a data class for reach-state-avoid specification"""
-from typing import Callable
 import dataclasses
 from .membership_sets import MembershipSet, SublevelSet
 
