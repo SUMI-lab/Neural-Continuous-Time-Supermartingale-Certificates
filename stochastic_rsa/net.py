@@ -12,8 +12,8 @@ class CertificateNet(nn.Sequential):
     """
 
     def __init__(self,
-                 activation: module_type = nn.Tanh,
-                 sizes: Sequence[int] = (64, 64, 64),
+                 activation: module_type = nn.Softplus,
+                 sizes: Sequence[int] = (64, 64),
                  nonnegative_activation: module_type = nn.Softplus,
                  device: torch.device | str = "cpu"
                  ):
