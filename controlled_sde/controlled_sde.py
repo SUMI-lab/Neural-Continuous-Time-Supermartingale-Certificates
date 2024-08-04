@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 import torch
+import torch.autograd as ag
 import torchsde
 import torchsde.types
 from .type_hints import tensor, tensors, vector, tensor_function
@@ -84,7 +85,68 @@ class ControlledSDE(ABC):
         u = self._get_u(t, x)
         return self.diffusion(t, x, u)
 
-    @torch.no_grad()
+    @torch.compile
+    def generator(self,
+                  f: torch.nn.Module,
+                  time_homogenous: bool = True
+                  ) -> tensor_function:
+        """Infinitesimal generator of the SDE's Feller-Dynkin process.
+
+        Args:
+            t (Sequence[float] | torch.Tensor): times
+            x (torch.Tensor): states
+
+        Returns:
+            torch.Tensor: the value of the generator at the point
+        """
+        if time_homogenous:
+            def f_single_arg(x):
+                return self.f(None, x)
+
+            def g_single_arg(x):
+                return self.g(None, x)
+        else:
+            def f_single_arg(x):
+                return self.f(x[:, 0], x[:, 1:])
+
+            def g_single_arg(x):
+                return self.g(x[:, 0], x[:, 1:])
+
+        def gen(x: tensor) -> tensor:
+
+            if torch.numel(x) == 0:
+                return x
+            with torch.no_grad():
+                ff = f_single_arg(x)
+                gg = g_single_arg(x)
+
+            # See https://pytorch.org/functorch/stable/notebooks/jacobians_hessians.html
+            # for batched Jacobians and Hessians
+            # x.requires_grad = True
+            # nabla = torch.vmap(lambda row: ag.functional.vjp(
+            #     f, row.unsqueeze(-1), f_single_arg(row.unsqueeze(-1)))[0])
+            # ag.functional.vhp()
+            # jacobian = torch.vmap(torch.func.jacfwd(f))
+            # hessian = torch.vmap(ag.functional.hessian(f))
+            # hessian_diag = torch.diagonal(
+            #     hessian(x).squeeze(),
+            #     dim1=-2,
+            #     dim2=-1
+            # )
+            _, vjpfunc = torch.func.vjp(f, x)
+            vjps = vjpfunc(torch.ones((x.shape[0], 1), device=x.device))
+            nabla = vjps[0]
+            _, vjpfunc2 = torch.func.vjp(
+                lambda x: vjpfunc(torch.ones((x.shape[0], 1), device=x.device))[0], x)
+            vjps2 = vjpfunc2(torch.ones((x.shape[0], 1), device=x.device))
+            hessian_diag = vjps2[0]
+            g_value = nabla.sum(dim=1) + 0.5 * \
+                (torch.square(gg) * hessian_diag).sum(dim=1)
+            # x.requires_grad = False
+            return g_value
+        return gen
+
+    @ torch.no_grad()
     def sample(self, x0: tensor, ts: vector, method: str = "euler",
                dt: str | float = "auto", **kwargs) -> tensor | tensors:
         """
@@ -113,7 +175,7 @@ class ControlledSDE(ABC):
             dt = torch.max(ts).item() / 1e3
         return torchsde.sdeint(self, x0, ts, method=method, dt=dt)
 
-    @abstractmethod
+    @ abstractmethod
     def analytical_sample(self, x0: tensor, ts: vector, **kwargs):
         """
         For each value in `x0`, simulates a sample path issuing from that point
