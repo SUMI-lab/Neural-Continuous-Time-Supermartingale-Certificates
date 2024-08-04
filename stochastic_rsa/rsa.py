@@ -1,14 +1,10 @@
 import torch
-import numpy as np
 from torch.nn import Module
 from controlled_sde import ControlledSDE
 from .sampling import Sampler
 from .specification import Specification
-from .membership_sets import SublevelSet, intersection, union, difference
+from .membership_sets import SublevelSet, difference
 import tqdm
-import matplotlib.pyplot as plt
-from matplotlib import colors
-from matplotlib.patches import Rectangle
 
 
 class SupermartingaleCertificate():
