@@ -1,51 +1,58 @@
 """
 Provides the class and some methods for sublevel sets based on some function.
 """
-from typing import TypeVar, Callable
+from typing import Callable, Self
+import torch
 from .membership_set import MembershipSet
 
-T = TypeVar("T")
 
-
-class SublevelMembershipSet(MembershipSet[T]):
+class SublevelSet(MembershipSet):
     """
     Sublevel set, that is, a set of all elements where the value of
     some function does not exceed a given threshold.
     """
 
-    def __init__(self, function: Callable[[T], float], threshold: float):
+    def __init__(self,
+                 function: Callable[[torch.Tensor], torch.Tensor],
+                 threshold: torch.float
+                 ):
         self.threshold = threshold
         self.function = function
 
-        def membership_function(x: T) -> bool:
-            return function(x) <= self.threshold
+        def membership_function(x: torch.Tensor) -> torch.bool:
+            return function(x).flatten() <= self.threshold
 
         super().__init__(membership_function)
 
+    @property
+    def boundary(self) -> MembershipSet:
+        """Sublevel set's boundary.
 
-def boundary(a: SublevelMembershipSet[T]) -> MembershipSet[T]:
-    """Sublevel set's boundary.
+        Returns:
+            MembershipSet: the boundary
+        """
+        def membership_function(x: torch.Tensor) -> torch.bool:
+            return self.function(x) == self.threshold
+        return MembershipSet(membership_function)
 
-    Args:
-        a (SublevelMembershipSet[T]): the set
+    @property
+    def interior(self) -> MembershipSet:
+        """Sublevel set's interior.
 
-    Returns:
-        MembershipSet[T]: its boundary
-    """
-    def membership_function(x: T) -> bool:
-        return a.function(x) == a.threshold
-    return MembershipSet(membership_function)
+        Returns:
+            MembershipSet: the interior
+        """
+        def membership_function(x: torch.Tensor) -> torch.bool:
+            return self.function(x) < self.threshold
+        return MembershipSet(membership_function)
 
+    @property
+    def interior_complement(self) -> MembershipSet:
+        """Complement of the sublevel set's interior.
 
-def interior(a: SublevelMembershipSet[T]) -> MembershipSet[T]:
-    """Sublevel set's interior.
-
-    Args:
-        a (SublevelMembershipSet[T]): the set
-
-    Returns:
-        MembershipSet[T]: its interior
-    """
-    def membership_function(x: T) -> bool:
-        return a.function(x) < a.threshold
-    return MembershipSet(membership_function)
+        Returns:
+            MembershipSet: the complement of the set's interior
+        """
+        def membership_function(x: torch.Tensor) -> torch.bool:
+            return self.function(x) >= self.threshold
+        return MembershipSet(membership_function)
