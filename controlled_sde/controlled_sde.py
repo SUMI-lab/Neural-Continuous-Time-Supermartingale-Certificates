@@ -132,6 +132,7 @@ class ControlledSDE(ABC):
             #     dim1=-2,
             #     dim2=-1
             # )
+            # nabla = jacobian(x)
             # for me, vjp works faster than the other method.
             _, vjpfunc = torch.func.vjp(f, x)
             vjps = vjpfunc(torch.ones((x.shape[0], 1), device=x.device))
