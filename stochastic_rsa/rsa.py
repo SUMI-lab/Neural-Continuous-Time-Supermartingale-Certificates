@@ -23,14 +23,14 @@ class SupermartingaleCertificate():
         self.device = device
 
     def train(self,
-              n_epochs: int = 100_000,
+              n_epochs: int = 10_000,
               dt: float = 0.05,
-              n_time: int = 64,
+              n_time: int | None = None,
               n_space: int = 4096,
-              batch_size=256,
+              batch_size: int = 256,
               lr: float = 1e-3,
-              zeta: float = 0.1,
-              xi: float = 0.1
+              zeta: float = 1.0,
+              xi: float = 1.0
               ):
         # initialize auxiliary variables
         spec = self.specification
@@ -90,14 +90,14 @@ class SupermartingaleCertificate():
             # find the loss over the initial set points
             x_0 = spec.initial_set.filter(batch)
             if torch.numel(x_0) != 0:
-                init_loss = torch.clamp(V(x_0) - alpha_ra, min=0.0).max()
+                init_loss = torch.clamp(V(x_0) - alpha_ra, min=0.0).sum()
             else:
                 init_loss = 0.0
 
             # find the loss over the safety set points
             x_u = spec.unsafe_set.filter(batch)
             if torch.numel(x_u) != 0:
-                safety_loss = torch.clamp(beta_ra - V(x_u), min=0.0).max()
+                safety_loss = torch.clamp(beta_ra - V(x_u), min=0.0).sum()
             else:
                 safety_loss = 0.0
 
@@ -108,7 +108,7 @@ class SupermartingaleCertificate():
                 values = V(x_inner)
                 goal_loss_in += torch.clamp(
                     values - beta_s, min=0.0
-                ).max()
+                ).sum()
                 # use the largest value of V(x) inside the target set
                 # as a cutoff point for the stay condition
                 beta_s_inner = values.detach().max().cpu().item()
@@ -119,7 +119,7 @@ class SupermartingaleCertificate():
             if torch.numel(x_outer) != 0:
                 goal_loss_out = torch.clamp(
                     beta_s - V(x_outer), min=0.0
-                ).max()
+                ).sum()
             else:
                 goal_loss_out = 0.0
 
@@ -128,7 +128,7 @@ class SupermartingaleCertificate():
             if torch.numel(x_non_target) != 0:
                 gen_values = generator(x_non_target)
                 decrease_loss = torch.clamp(
-                    gen_values, min=-zeta).max()
+                    gen_values, min=-zeta).sum()
             else:
                 decrease_loss = 0.0
 
@@ -139,7 +139,7 @@ class SupermartingaleCertificate():
             if torch.numel(x_stay) != 0:
                 gen_values_stay = generator(x_stay)
                 stay_loss = torch.clamp(
-                    gen_values_stay, min=-xi).max()
+                    gen_values_stay, min=-xi).sum()
             else:
                 stay_loss = 0.0
 
@@ -150,12 +150,12 @@ class SupermartingaleCertificate():
 
             # update the progress bar with the loss information
             progress_bar.set_description(
-                f"L0:{init_loss: 6.3f}, "
+                f"L0:{init_loss: 8.3f}, "
                 f"Lu:{safety_loss: 8.3f}, "
-                f"Ld:{decrease_loss: 7.3f}, "
-                f"Lgi:{goal_loss_in: 7.3f}, "
-                f"Lgo:{goal_loss_out: 7.3f}, "
-                f"Ls:{stay_loss: 7.3f}"
+                f"Lgi:{goal_loss_in: 8.3f}, "
+                f"Lgo:{goal_loss_out: 8.3f}, "
+                f"Ld:{decrease_loss: 8.3f}, "
+                f"Ls:{stay_loss: 8.3f}"
             )
 
             # if the loss is scalar (i.e., a batch sample was not
