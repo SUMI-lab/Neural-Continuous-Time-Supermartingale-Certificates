@@ -99,6 +99,8 @@ class ControlledSDE(ABC):
         Returns:
             torch.Tensor: the value of the generator at the point
         """
+        # the neural certificate has one input, these helper functions
+        # concatenate t and x if they are separate in the time-heterogenous case
         if time_homogenous:
             def f_single_arg(x):
                 return self.f(None, x)
@@ -112,20 +114,17 @@ class ControlledSDE(ABC):
             def g_single_arg(x):
                 return self.g(x[:, 0], x[:, 1:])
 
+        # the generator function to return
         def gen(x: tensor) -> tensor:
 
             if torch.numel(x) == 0:
                 return x
+
             with torch.no_grad():
                 ff = f_single_arg(x)
                 gg = g_single_arg(x)
 
-            # See https://pytorch.org/functorch/stable/notebooks/jacobians_hessians.html
-            # for batched Jacobians and Hessians
-            # x.requires_grad = True
-            # nabla = torch.vmap(lambda row: ag.functional.vjp(
-            #     f, row.unsqueeze(-1), f_single_arg(row.unsqueeze(-1)))[0])
-            # ag.functional.vhp()
+            # The alternative way to find gradient/hessian is:
             # jacobian = torch.vmap(torch.func.jacfwd(f))
             # hessian = torch.vmap(ag.functional.hessian(f))
             # hessian_diag = torch.diagonal(
@@ -133,6 +132,7 @@ class ControlledSDE(ABC):
             #     dim1=-2,
             #     dim2=-1
             # )
+            # for me, vjp works faster than the other method.
             _, vjpfunc = torch.func.vjp(f, x)
             vjps = vjpfunc(torch.ones((x.shape[0], 1), device=x.device))
             nabla = vjps[0]
@@ -142,7 +142,6 @@ class ControlledSDE(ABC):
             hessian_diag = vjps2[0]
             g_value = nabla.sum(dim=1) + 0.5 * \
                 (torch.square(gg) * hessian_diag).sum(dim=1)
-            # x.requires_grad = False
             return g_value
         return gen
 
