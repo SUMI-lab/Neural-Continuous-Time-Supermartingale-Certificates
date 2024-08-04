@@ -92,12 +92,13 @@ initial_set = rsa.membership_sets.MembershipSet(
 )
 target_set = rsa.membership_sets.SublevelSet(
     lambda x:
-    torch.norm(x / torch.tensor([1.0, torch.pi/0.4],
+    torch.norm(x / torch.tensor([2.0, torch.pi/0.3],
                device=device), float('inf'), dim=1),
     1.0
 )
+unsafe_threshold = torch.tensor([6.0, 0.0], device=device)
 unsafe_set = rsa.membership_sets.MembershipSet(
-    lambda x: x[:, 0] >= 5.0
+    lambda x: torch.all(torch.abs(x) >= unsafe_threshold, dim=1)
 )
 reach_avoid_probability, stay_probability = 0.9, 0.9
 
@@ -122,7 +123,7 @@ ts = torch.linspace(0, DURATION, T_SIZE, device=device)
 sample_paths = sde.sample(x0, ts, method="srk").squeeze()
 
 # Plot
-fig, (ax1, ax2) = plt.subplots(1, 2)
+fig, ax1 = plt.subplots(1, 1)
 
 with torch.no_grad():
     x = torch.tensor(sampler.sample_space(16384),
@@ -142,32 +143,21 @@ ax1.add_patch(Rectangle((-0.5, 0.875 * torch.pi), 1, 0.25 * torch.pi,
                         edgecolor='yellow',
                         facecolor='none',
                         lw=2))
-ax1.add_patch(Rectangle((-1, -torch.pi/4), 2, torch.pi/2,
+ax1.add_patch(Rectangle((-2, -torch.pi/3), 4, 2*torch.pi/3,
                         edgecolor='green',
                         facecolor='none',
                         lw=2))
-ax1.add_patch(Rectangle((5, -3.5 * torch.pi), 4, 7 * torch.pi,
+ax1.add_patch(Rectangle((6, 0), 3, 2 * torch.pi,
+                        edgecolor='red',
+                        facecolor='none',
+                        lw=2))
+ax1.add_patch(Rectangle((-6, 0), -3, -2 * torch.pi,
                         edgecolor='red',
                         facecolor='none',
                         lw=2))
 
 path_data = sample_paths.cpu().numpy()
-ax2.plot(path_data[:, :, 0], path_data[:, :, 1])
-
-ax2.set_xlim([-MAX_SPEED, MAX_SPEED])
-ax2.set_ylim([-MAX_ANGLE, MAX_ANGLE])
-ax2.add_patch(Rectangle((-0.5, 0.875 * torch.pi), 1, 0.25 * torch.pi,
-                        edgecolor='yellow',
-                        facecolor='none',
-                        lw=2))
-ax2.add_patch(Rectangle((-1, -torch.pi/4), 2, torch.pi/2,
-                        edgecolor='green',
-                        facecolor='none',
-                        lw=2))
-ax2.add_patch(Rectangle((5, -3.5 * torch.pi), 4, 7 * torch.pi,
-                        edgecolor='red',
-                        facecolor='none',
-                        lw=2))
+ax1.plot(path_data[:, :, 0], path_data[:, :, 1], color="white", lw=1)
 
 plt.show()
 
