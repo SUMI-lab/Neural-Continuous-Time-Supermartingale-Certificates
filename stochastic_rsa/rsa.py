@@ -57,6 +57,8 @@ class SupermartingaleCertificate():
             x = torch.tile(x, (n_time, 1))
             x = torch.cat((t.view(-1, 1), x), dim=1)
 
+        x_star = torch.zeros((1, x.shape[1]))
+
         # compute the threshold constants
         prob_ra = spec.reach_avoid_probability
         prob_stay = spec.stay_probability
@@ -105,16 +107,15 @@ class SupermartingaleCertificate():
 
             # find the loss over the interior of the target set
             x_inner = target_interior.filter(batch)
+            goal_loss_in = V(x_star).item()
             if torch.numel(x_inner) != 0:
                 values = V(x_inner)
-                goal_loss_in = torch.clamp(
+                goal_loss_in += torch.clamp(
                     values - beta_s, min=0.0
                 ).max()
                 # use the largest value of V(x) inside the target set
                 # as a cutoff point for the stay condition
                 beta_s_inner = values.detach().max().cpu().item()
-            else:
-                goal_loss_in = 0.0
 
             # find the loss outside of the target set
             x_outer = outer_area.filter(batch)
