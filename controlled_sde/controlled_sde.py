@@ -121,8 +121,8 @@ class ControlledSDE(ABC):
                 return x
 
             with torch.no_grad():
-                ff = f_single_arg(x)
-                gg = g_single_arg(x)
+                f_value = f_single_arg(x)
+                g_value = g_single_arg(x)
 
             # The alternative way to find gradient/hessian is:
             # jacobian = torch.vmap(torch.func.jacfwd(f))
@@ -140,8 +140,8 @@ class ControlledSDE(ABC):
                 lambda x: vjpfunc(torch.ones((x.shape[0], 1), device=x.device))[0], x)
             vjps2 = vjpfunc2(torch.ones((x.shape[0], 1), device=x.device))
             hessian_diag = vjps2[0]
-            g_value = (ff * nabla).sum(dim=1) + 0.5 * \
-                (torch.square(gg) * hessian_diag).sum(dim=1)
+            g_value = (f_value * nabla).sum(dim=1) + 0.5 * \
+                (torch.square(g_value) * hessian_diag).sum(dim=1)
             return g_value
         return gen
 
