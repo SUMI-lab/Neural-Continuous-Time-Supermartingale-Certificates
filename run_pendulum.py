@@ -115,7 +115,8 @@ spec = rsa.Specification(
 )
 
 certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
-certificate.train()
+certificate.train(n_epochs=10_000, n_space=41*41)
+certificate.verify()
 
 # Initialize the batch of starting states
 x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
