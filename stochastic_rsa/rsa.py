@@ -100,7 +100,7 @@ class SupermartingaleCertificate():
             batch = x[indices, :]
 
             # find the loss over the initial set points
-            x_0 = spec.initial_set.filter(x)
+            x_0 = spec.initial_set.filter(batch)
             if torch.numel(x_0) != 0:
                 init_loss = torch.clamp(
                     V(x_0) - alpha_ra, min=0.0).sum()
@@ -108,7 +108,7 @@ class SupermartingaleCertificate():
                 init_loss = 0.0
 
             # find the loss over the safety set points
-            x_u = spec.unsafe_set.filter(x)
+            x_u = spec.unsafe_set.filter(batch)
             if torch.numel(x_u) != 0:
                 safety_loss = torch.clamp(
                     beta_ra - V(x_u), min=0.0).sum()
@@ -116,7 +116,7 @@ class SupermartingaleCertificate():
                 safety_loss = 0.0
 
             # find the loss over the interior of the target set
-            x_inner = target_interior.filter(x)
+            x_inner = target_interior.filter(batch)
             goal_loss_in = V(x_star).item()
             if torch.numel(x_inner) != 0:
                 values = V(x_inner)
@@ -128,7 +128,7 @@ class SupermartingaleCertificate():
                 beta_s_inner = values.detach().max().cpu().item()
 
             # find the loss outside of the target set
-            x_outer = outer_area.filter(x)
+            x_outer = outer_area.filter(batch)
             # print(x_outer, V(x_outer))
             if torch.numel(x_outer) != 0:
                 goal_loss_out = torch.clamp(
@@ -150,7 +150,7 @@ class SupermartingaleCertificate():
             alpha_s = beta_s_inner * (1.0 - prob_stay)
             sub_alpha_set.threshold = alpha_s
             x_stay = intersection(
-                target_interior, sub_alpha_set.complement).filter(x_inner)
+                target_interior, sub_alpha_set.complement).filter(batch)
             if torch.numel(x_stay) != 0:
                 gen_values_stay = generator(x_stay)
                 stay_loss = torch.clamp(
