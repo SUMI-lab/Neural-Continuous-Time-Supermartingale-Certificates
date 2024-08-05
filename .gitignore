@@ -166,3 +166,4 @@ cython_debug/
 
 # Linter
 .pylintrc
+auto_LiRPA/

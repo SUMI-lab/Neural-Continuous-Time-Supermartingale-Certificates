@@ -1,10 +1,12 @@
 import torch
 from torch.nn import Module
+import tqdm
+from auto_LiRPA import BoundedModule, BoundedTensor
+from auto_LiRPA.perturbations import PerturbationLpNorm
 from controlled_sde import ControlledSDE
 from .sampling import Sampler
 from .specification import Specification
 from .membership_sets import SublevelSet, difference
-import tqdm
 
 
 class SupermartingaleCertificate():
@@ -29,8 +31,8 @@ class SupermartingaleCertificate():
               n_space: int = 4096,
               batch_size: int = 256,
               lr: float = 1e-3,
-              zeta: float = 1.0,
-              xi: float = 1.0
+              zeta: float = 0.1,
+              xi: float = 0.1
               ):
         # initialize auxiliary variables
         spec = self.specification
@@ -58,9 +60,10 @@ class SupermartingaleCertificate():
         # compute the threshold constants
         prob_ra = spec.reach_avoid_probability
         prob_stay = spec.stay_probability
+
         alpha_ra = 1.0
         beta_ra = alpha_ra / (1.0 - prob_ra)
-        beta_s = 0.1
+        beta_s = alpha_ra * 0.1
         beta_s_inner = beta_s
         alpha_s = beta_s * (1.0 - prob_stay)
 
@@ -167,3 +170,100 @@ class SupermartingaleCertificate():
             torch.nn.utils.clip_grad_norm_(V.parameters(), 1.0)
             loss.backward()
             optimizer.step()
+
+    def verify(self):
+        # reach-avoid probability
+        x0 = torch.tensor([[0.0, torch.pi]],
+                          dtype=torch.float32,
+                          device=self.device
+                          )
+        x0_lb = torch.tensor([[-0.5, torch.pi*7/8]],
+                             dtype=torch.float32,
+                             device=self.device
+                             )
+        x0_ub = torch.tensor([[+0.5, torch.pi]],
+                             dtype=torch.float32,
+                             device=self.device
+                             )
+        lirpa_model = BoundedModule(self.net, torch.empty_like(
+            x0), bound_opts={'sparse_intermediate_bounds': False})
+        norm = float("inf")
+        ptb_x0 = PerturbationLpNorm(norm=norm, x_L=x0_lb, x_U=x0_ub)
+        bounded_x0 = BoundedTensor(x0, ptb_x0)
+        _, ub = lirpa_model.compute_bounds(
+            x=(bounded_x0,), method='alpha-CROWN')
+        init_upper = ub.item()
+        xu = torch.tensor([[7.0, torch.pi/2.0]],
+                          dtype=torch.float32,
+                          device=self.device
+                          )
+        xu_lb = torch.tensor([[6.0, 0.0]],
+                             dtype=torch.float32,
+                             device=self.device
+                             )
+        xu_ub = torch.tensor([[8.0, torch.pi]],
+                             dtype=torch.float32,
+                             device=self.device
+                             )
+        ptb_xu = PerturbationLpNorm(norm=norm, x_L=xu_lb, x_U=xu_ub)
+        bounded_xu = BoundedTensor(xu, ptb_xu)
+        lb, _ = lirpa_model.compute_bounds(
+            x=(bounded_xu,), method='alpha-CROWN')
+        unsafe_lower = lb.item()
+        xu = torch.tensor([[-7.0, -torch.pi/2.0]],
+                          dtype=torch.float32,
+                          device=self.device
+                          )
+        xu_lb = torch.tensor([[-8.0, -torch.pi]],
+                             dtype=torch.float32,
+                             device=self.device
+                             )
+        xu_ub = torch.tensor([[-6.0, 0.0]],
+                             dtype=torch.float32,
+                             device=self.device
+                             )
+        ptb_xu = PerturbationLpNorm(norm=norm, x_L=xu_lb, x_U=xu_ub)
+        bounded_xu = BoundedTensor(xu, ptb_xu)
+        lb, _ = lirpa_model.compute_bounds(
+            x=(bounded_xu,), method='alpha-CROWN')
+        if unsafe_lower > lb.item():
+            unsafe_lower = lb.item()
+        print(f"max initial value: {init_upper}")
+        print(f"min unsafe value: {unsafe_lower}")
+        prob_ra = max(1 - init_upper/unsafe_lower, 0)
+        print(
+            f"reach-avoid constraint satisfied with "
+            f"probability at least {prob_ra}"
+        )
+        if prob_ra < self.specification.reach_avoid_probability:
+            return False
+        # # decrease property
+        # beta_ra = init_upper / \
+        #     (1.0 - self.specification.reach_avoid_probability)
+        # n_samples = 4096
+        # # min distance between sampled points for Sobol sequences is tol,
+        # # there is probably a better number to use here
+        # tol = 0.5 * (2 ** 0.5) / n_samples
+        # sublevel_sample = SublevelSet(self.net, beta_ra).filter(
+        #     torch.tensor(self.sampler.sample_space(4096),
+        #                  dtype=torch.float32,
+        #                  device=self.device
+        #                  )
+        # )
+        # sublevel_lb = torch.min(sublevel_sample, dim=0,
+        #                         keepdim=True).values - tol
+        # sublevel_ub = torch.max(sublevel_sample, dim=0,
+        #                         keepdim=True).values + tol
+        # x = torch.tensor([[0.0, 0.0]],
+        #                  dtype=torch.float32,
+        #                  device=self.device
+        #                  )
+        # ptb = PerturbationLpNorm(norm=norm, x_L=sublevel_lb, x_U=sublevel_ub)
+        # bounded_x = BoundedTensor(x, ptb)
+        # generator = self.sde.generator(self.net, True)
+        # lirpa_model = BoundedModule(generator, torch.empty_like(x0))
+        # # the line above will throw because
+        # # generator is not a module but a function
+        # lb, ub = lirpa_model.compute_bounds(
+        #     x=(bounded_x,), method='alpha-CROWN')
+        return True
