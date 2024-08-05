@@ -6,9 +6,9 @@ import torch.nn as nn
 type module_type = Callable[[], nn.Module]
 
 
-class CustomSoftmax(nn.Module):
+class CustomFinalLayer(nn.Module):
     def forward(self, x):
-        return torch.log(1 + torch.exp(x))
+        return torch.tanh(x) + 1.0
 
 
 class CertificateNet(nn.Sequential):
@@ -19,7 +19,7 @@ class CertificateNet(nn.Sequential):
     def __init__(self,
                  activation: module_type = nn.Tanh,
                  sizes: Sequence[int] = (64, 64),
-                 nonnegative_activation: module_type = CustomSoftmax,
+                 nonnegative_activation: module_type = CustomFinalLayer,
                  device: torch.device | str = "cpu"
                  ):
         layers = ((nn.LazyLinear(size, dtype=torch.float32, device=device), activation())
