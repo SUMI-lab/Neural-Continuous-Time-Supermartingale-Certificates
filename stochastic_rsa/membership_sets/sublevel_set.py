@@ -32,7 +32,7 @@ class SublevelSet(MembershipSet):
             MembershipSet: the boundary
         """
         def membership_function(x: torch.Tensor) -> torch.bool:
-            return self.function(x) == self.threshold
+            return torch.abs(self.function(x) - self.threshold) < 1e-10
         return MembershipSet(membership_function)
 
     @property
@@ -43,7 +43,7 @@ class SublevelSet(MembershipSet):
             MembershipSet: the interior
         """
         def membership_function(x: torch.Tensor) -> torch.bool:
-            return self.function(x) < self.threshold
+            return self.function(x) < self.threshold - 1e-10
         return MembershipSet(membership_function)
 
     @property
