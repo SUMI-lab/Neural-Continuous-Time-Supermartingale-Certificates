@@ -6,15 +6,20 @@ import torch.nn as nn
 type module_type = Callable[[], nn.Module]
 
 
+class CustomSoftmax(nn.Module):
+    def forward(self, x):
+        return torch.log(1 + torch.exp(x))
+
+
 class CertificateNet(nn.Sequential):
     """
     A certificate network
     """
 
     def __init__(self,
-                 activation: module_type = nn.Softplus,
+                 activation: module_type = nn.Tanh,
                  sizes: Sequence[int] = (64, 64),
-                 nonnegative_activation: module_type = nn.Softplus,
+                 nonnegative_activation: module_type = CustomSoftmax,
                  device: torch.device | str = "cpu"
                  ):
         layers = ((nn.LazyLinear(size, dtype=torch.float32, device=device), activation())
