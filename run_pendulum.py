@@ -74,11 +74,13 @@ def rl_policy(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
 sde = controlled_sde.InvertedPendulum(rl_policy)
 
 MAX_SPEED = 8.0
-MAX_ANGLE = torch.pi
+MAX_ANGLE = 1.5 * torch.pi
 
 high = torch.tensor([MAX_SPEED, MAX_ANGLE], device=device)
-sampler = rsa.sampling.SobolSampler(-high.cpu().numpy(),
-                                    high.cpu().numpy())
+sampler = rsa.sampling.GridSampler(-high.cpu().numpy(),
+                                   high.cpu().numpy())
+# sampler = rsa.sampling.SobolSampler(-high.cpu().numpy(),
+#                                     high.cpu().numpy())
 net = rsa.CertificateNet(device=device)
 
 interest_set = rsa.membership_sets.MembershipSet(
