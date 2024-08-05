@@ -128,7 +128,7 @@ sample_paths = sde.sample(x0, ts, method="srk").squeeze()
 fig, ax1 = plt.subplots(1, 1)
 
 with torch.no_grad():
-    x = torch.tensor(sampler.sample_space(16384),
+    x = torch.tensor(sampler.sample_space(101*101),
                      dtype=torch.float32,
                      device=device
                      )
