@@ -85,7 +85,6 @@ class ControlledSDE(ABC):
         u = self._get_u(t, x)
         return self.diffusion(t, x, u)
 
-    @torch.compile
     def generator(self,
                   f: torch.nn.Module,
                   time_homogenous: bool = True
