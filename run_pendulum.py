@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import numpy.random as npr
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -74,7 +75,7 @@ def rl_policy(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
 # initialize the controlled SDE
 sde = controlled_sde.InvertedPendulum(rl_policy)
 
-MAX_SPEED = 8.0
+MAX_SPEED = 10.0
 MAX_ANGLE = 1.5 * torch.pi
 
 high = torch.tensor([MAX_SPEED, MAX_ANGLE], device=device)
@@ -99,9 +100,15 @@ target_set = rsa.membership_sets.SublevelSet(
                device=device), float('inf'), dim=1),
     1.0
 )
-unsafe_threshold = torch.tensor([6.0, 0.0], device=device)
-unsafe_set = rsa.membership_sets.MembershipSet(
-    lambda x: torch.all(torch.abs(x) >= unsafe_threshold, dim=1)
+unsafe_bound = torch.tensor([1, torch.pi/2], device=device)
+unsafe_mid = torch.tensor([7, torch.pi/2], device=device)
+unsafe_set = rsa.membership_sets.union(
+    rsa.membership_sets.MembershipSet(
+        lambda x: torch.all(torch.abs(x - unsafe_mid) <= unsafe_bound, dim=1)
+    ),
+    rsa.membership_sets.MembershipSet(
+        lambda x: torch.all(torch.abs(x + unsafe_mid) <= unsafe_bound, dim=1)
+    )
 )
 reach_avoid_probability, stay_probability = 0.9, 0.9
 
@@ -116,7 +123,7 @@ spec = rsa.Specification(
 )
 
 certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
-certificate.train(n_epochs=10_000, n_space=41*41)
+certificate.train(n_epochs=10_000, n_space=41*41, batch_size=64, lr=1e-4)
 certificate.verify()
 
 # Initialize the batch of starting states
@@ -130,14 +137,22 @@ sample_paths = sde.sample(x0, ts, method="srk").squeeze()
 fig, ax1 = plt.subplots(1, 1)
 
 with torch.no_grad():
-    x = torch.tensor(sampler.sample_space(101*101),
-                     dtype=torch.float32,
-                     device=device
-                     )
-    c = ax1.tricontourf(x[:, 0].squeeze().numpy(),
-                        x[:, 1].squeeze().numpy(),
-                        certificate.net(x).clamp(min=1e-20).squeeze().numpy(),
-                        norm=colors.LogNorm())
+    grid = torch.stack(
+        torch.meshgrid(
+            torch.linspace(-MAX_SPEED, MAX_SPEED, 101),
+            torch.linspace(-MAX_SPEED, MAX_SPEED, 101),
+            indexing='xy'
+        )
+    )
+    grid = grid.reshape(2, -1).T
+    out = certificate.net(grid)
+    c = ax1.contourf(
+        np.linspace(-MAX_SPEED, MAX_SPEED, 101),
+        np.linspace(-MAX_SPEED, MAX_SPEED, 101),
+        out.detach().numpy().reshape(101, 101),
+        norm=colors.LogNorm(),
+        levels=[10 ** (n / 4) for n in range(-16, 4, 1)]
+    )
 
 fig.colorbar(c, ax=ax1)
 
@@ -151,11 +166,11 @@ ax1.add_patch(Rectangle((-2, -torch.pi/3), 4, 2*torch.pi/3,
                         edgecolor='green',
                         facecolor='none',
                         lw=2))
-ax1.add_patch(Rectangle((6, 0), 3, 2 * torch.pi,
+ax1.add_patch(Rectangle((6, 0), 2, torch.pi,
                         edgecolor='red',
                         facecolor='none',
                         lw=2))
-ax1.add_patch(Rectangle((-6, 0), -3, -2 * torch.pi,
+ax1.add_patch(Rectangle((-6, 0), -2, -torch.pi,
                         edgecolor='red',
                         facecolor='none',
                         lw=2))
@@ -165,5 +180,5 @@ ax1.plot(path_data[:, :, 0], path_data[:, :, 1], color="white", lw=1)
 
 plt.show()
 
-sde.render(sample_paths, ts)
+# sde.render(sample_paths, ts)
 sde.close()
