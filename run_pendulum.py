@@ -124,7 +124,7 @@ spec = rsa.Specification(
 
 certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
 certificate.train(n_epochs=10_000, n_space=41*41, batch_size=64, lr=1e-4)
-certificate.verify()
+# certificate.verify()
 
 # Initialize the batch of starting states
 x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
@@ -145,13 +145,15 @@ with torch.no_grad():
         )
     )
     grid = grid.reshape(2, -1).T
-    out = certificate.net(grid)
+    out = certificate.net(grid).detach().numpy().reshape(101, 101)
+    min_level = int(np.floor(np.log10(out.min()) * 4))
+    max_level = int(np.ceil(np.log10(out.max()) * 4)) + 1
     c = ax1.contourf(
         np.linspace(-MAX_SPEED, MAX_SPEED, 101),
         np.linspace(-MAX_SPEED, MAX_SPEED, 101),
-        out.detach().numpy().reshape(101, 101),
+        out,
         norm=colors.LogNorm(),
-        levels=[10 ** (n / 4) for n in range(-16, 4, 1)]
+        levels=[10 ** (n / 4) for n in range(min_level, max_level, 1)]
     )
 
 fig.colorbar(c, ax=ax1)
