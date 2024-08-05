@@ -9,9 +9,10 @@ import stochastic_rsa as rsa
 
 # Seed the random number generators
 seeds = npr.randint(1, 1e5, size=(2,))
-torch.manual_seed(seeds[0])
+torch.manual_seed(0)
 npr.seed(seeds[1])
 torch.set_default_dtype(torch.float32)
+torch.use_deterministic_algorithms(True)
 
 
 DEVICE_STR = "cpu"  # Torch device
