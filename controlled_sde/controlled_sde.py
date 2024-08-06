@@ -13,7 +13,7 @@ class ControlledSDE(ABC):
     The base class for controlled SDEs.
     """
 
-    def __init__(self, policy: tensor_function,
+    def __init__(self, policy: torch.nn.Module,
                  noise_type: str, sde_type: str = "ito"):
         super().__init__()
         self.policy = policy
@@ -51,7 +51,7 @@ class ControlledSDE(ABC):
         """
 
     def _get_u(self, t: vector, x: tensor):
-        return self.policy(t, x)
+        return self.policy(x)
 
     def f(self, t: vector, x: tensor) -> tensor:
         """

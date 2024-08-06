@@ -58,22 +58,8 @@ rl_policy_net.load_state_dict(torch.load(
 ))
 rl_policy_net.requires_grad_(False)
 
-
-def rl_policy(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-    """A trained RL-based policy.
-
-    Args:
-        _t (float | torch.Tensor): time
-        x (torch.Tensor): state
-
-    Returns:
-        torch.Tensor: control (a vector of zeros)
-    """
-    return rl_policy_net(x)
-
-
 # initialize the controlled SDE
-sde = controlled_sde.InvertedPendulum(rl_policy)
+sde = controlled_sde.InvertedPendulum(rl_policy_net)
 
 MAX_SPEED = 10.0
 MAX_ANGLE = 1.5 * torch.pi
@@ -123,8 +109,8 @@ spec = rsa.Specification(
 )
 
 certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
-certificate.train(n_epochs=20_000, n_space=41*41, batch_size=64, lr=1e-3,
-                  verify_every_n=1000)
+certificate.train(n_epochs=100_000, n_space=41*41, batch_size=64, lr=1e-3,
+                  verify_every_n=1000, verifier_mesh_size=50)
 # certificate.verify()
 
 # Initialize the batch of starting states

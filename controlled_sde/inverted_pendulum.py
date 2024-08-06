@@ -41,7 +41,7 @@ class InvertedPendulum(ControlledSDE):
     the maximum torque afterwards.
     """
 
-    def __init__(self, policy: tensor_function,
+    def __init__(self, policy: torch.nn.Module,
                  pendulum_data: PendulumData = default_pendulum_data,
                  gravity: float = 9.81,
                  volatility_scale: float = 2.0):
@@ -61,7 +61,7 @@ class InvertedPendulum(ControlledSDE):
     def drift(self, _t, x, u):
         phi, theta = torch.split(x, split_size_or_sections=(1, 1), dim=1)
 
-        f_phi = self.a1 * torch.sin(theta) + self.a2 * u - self.a3
+        f_phi = self.a1 * torch.sin(theta) + self.a2 * u - self.a3 * phi
         f_theta = phi
         return torch.cat([f_phi, f_theta], dim=1)
 
