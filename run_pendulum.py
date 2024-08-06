@@ -146,14 +146,19 @@ with torch.no_grad():
     )
     grid = grid.reshape(2, -1).T
     out = certificate.net(grid).detach().numpy().reshape(101, 101)
-    min_level = int(np.floor(np.log10(out.min()) * 4))
-    max_level = int(np.ceil(np.log10(out.max()) * 4)) + 1
+
+    scaling_factor = certificate.net(
+        initial_set.filter(grid)
+    ).detach().numpy().max()
+    out /= scaling_factor
+    min_level = int(np.floor(np.log10(out.min()) * 5))
+    max_level = int(np.ceil(np.log10(out.max()) * 5)) + 1
     c = ax1.contourf(
         np.linspace(-MAX_SPEED, MAX_SPEED, 101),
         np.linspace(-MAX_SPEED, MAX_SPEED, 101),
         out,
         norm=colors.LogNorm(),
-        levels=[10 ** (n / 4) for n in range(min_level, max_level, 1)]
+        levels=[10 ** (n / 5) for n in range(min_level, max_level, 1)]
     )
 
 fig.colorbar(c, ax=ax1)
@@ -178,7 +183,9 @@ ax1.add_patch(Rectangle((-6, 0), -2, -torch.pi,
                         lw=2))
 
 path_data = sample_paths.cpu().numpy()
-ax1.plot(path_data[:, :, 0], path_data[:, :, 1], color="white", lw=1)
+ax1.plot(path_data[:, :, 0], path_data[:, :, 1],
+         color="white", alpha=0.1, lw=1
+         )
 
 plt.show()
 
