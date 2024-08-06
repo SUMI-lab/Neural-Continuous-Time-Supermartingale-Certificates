@@ -123,7 +123,8 @@ spec = rsa.Specification(
 )
 
 certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
-certificate.train(n_epochs=10_000, n_space=41*41, batch_size=64, lr=1e-4)
+certificate.train(n_epochs=20_000, n_space=41*41, batch_size=64, lr=1e-3,
+                  verify_every_n=1000)
 # certificate.verify()
 
 # Initialize the batch of starting states
