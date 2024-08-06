@@ -18,3 +18,15 @@ class GridSampler(Sampler):
             (n_dim, n_points_per_dim ** n_dim)
         ).transpose()
         return grid[:n, :]
+
+    def sample_cells(self, n: int = 100) -> np.ndarray:
+        n_dim = self.n_dim
+        n_points_per_dim = int(np.ceil(np.power(n, 1.0 / n_dim)))
+        margin = 0.5 / n_points_per_dim
+        points_along_one_dimension = np.linspace(
+            margin, 1-margin, n_points_per_dim)
+        grid = np.meshgrid(*((points_along_one_dimension,) * n_dim))
+        grid = np.concatenate(grid).reshape(
+            (n_dim, n_points_per_dim ** n_dim)
+        ).transpose()
+        return grid[:n, :] * self.magnitude + self.low
