@@ -310,7 +310,7 @@ class SupermartingaleCertificate():
                 continue
 
             # do the gradient step
-            if False and (epoch + 1) % verify_every_n == 0 or epoch + 1 == n_epochs:
+            if (epoch + 1) % verify_every_n == 0 or epoch + 1 == n_epochs:
                 # verify
                 print("Verifying:")
 
