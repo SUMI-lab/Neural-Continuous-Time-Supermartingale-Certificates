@@ -58,14 +58,14 @@ class InvertedPendulum(ControlledSDE):
         self.rendering_data = RenderingData(
             screen_dim=500, screen=None, clock=None, surf=None)
 
-    def drift(self, _t, x, u):
+    def drift(self, x, u):
         phi, theta = torch.split(x, split_size_or_sections=(1, 1), dim=1)
 
         f_phi = self.a1 * torch.sin(theta) + self.a2 * u - self.a3 * phi
         f_theta = phi
         return torch.cat([f_phi, f_theta], dim=1)
 
-    def diffusion(self, _t, x, _u):
+    def diffusion(self, x, _u):
         # phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
         # g_phi = self.sigma * phi
         g_phi = torch.full((x.shape[0], 1), self.sigma, device=x.device)

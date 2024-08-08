@@ -1,3 +1,6 @@
+import hessQuik.networks as net
+import hessQuik.layers as lay
+import hessQuik.activations as act
 import torch
 import numpy as np
 import numpy.random as npr
@@ -7,6 +10,9 @@ from matplotlib.patches import Rectangle
 import controlled_sde
 from rl_agent import TanhPolicy
 import stochastic_rsa as rsa
+import hessQuik.activations as act
+import hessQuik.layers as lay
+import hessQuik.networks as ntw
 
 # Seed the random number generators
 seeds = npr.randint(1, 1e5, size=(2,))
@@ -37,7 +43,7 @@ if DEVICE_STR == "auto":
 device = torch.device(DEVICE_STR)
 
 
-def policy_do_nothing(_t: float | torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+def policy_do_nothing(x: torch.Tensor) -> torch.Tensor:
     """A policy that performs zero-th action every time (does nothing).
 
     Args:
@@ -70,6 +76,7 @@ sampler = rsa.sampling.GridSampler(-high.cpu().numpy(),
 # sampler = rsa.sampling.SobolSampler(-high.cpu().numpy(),
 #                                     high.cpu().numpy())
 net = rsa.CertificateNet(device=device)
+
 
 interest_set = rsa.membership_sets.MembershipSet(
     lambda x: torch.all(torch.abs(x) <= high, dim=1)
@@ -109,16 +116,16 @@ spec = rsa.Specification(
 )
 
 certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
-certificate.train(n_epochs=100_000, n_space=41*41, batch_size=64, lr=1e-3,
-                  verify_every_n=1000, verifier_mesh_size=50)
+certificate.train(n_epochs=5000, n_space=41*41, batch_size=64, lr=1e-3,
+                  verify_every_n=500, verifier_mesh_size=100, zeta=1e-3)
 # certificate.verify()
 
 # Initialize the batch of starting states
-x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
-                  device=device).expand(BATCH_SIZE, -1)
-ts = torch.linspace(0, DURATION, T_SIZE, device=device)
+# x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
+#                   device=device).expand(BATCH_SIZE, -1)
+# ts = torch.linspace(0, DURATION, T_SIZE, device=device)
 
-sample_paths = sde.sample(x0, ts, method="srk").squeeze()
+# sample_paths = sde.sample(x0, ts, method="srk").squeeze()
 
 # Plot
 fig, ax1 = plt.subplots(1, 1)
@@ -133,7 +140,6 @@ with torch.no_grad():
     )
     grid = grid.reshape(2, -1).T
     out = certificate.net(grid).detach().numpy().reshape(101, 101)
-
     scaling_factor = certificate.net(
         initial_set.filter(grid)
     ).detach().numpy().max()
@@ -169,10 +175,10 @@ ax1.add_patch(Rectangle((-6, 0), -2, -torch.pi,
                         facecolor='none',
                         lw=2))
 
-path_data = sample_paths.cpu().numpy()
-ax1.plot(path_data[:, :, 0], path_data[:, :, 1],
-         color="white", alpha=0.1, lw=1
-         )
+# path_data = sample_paths.cpu().numpy()
+# ax1.plot(path_data[:, :, 0], path_data[:, :, 1],
+#          color="white", alpha=0.1, lw=1
+#          )
 
 plt.show()
 

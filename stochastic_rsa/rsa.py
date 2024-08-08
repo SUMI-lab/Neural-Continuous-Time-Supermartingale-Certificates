@@ -10,6 +10,7 @@ from .sampling.grid import GridSampler
 from .sampling import Sampler
 from .specification import Specification
 from .membership_sets import SublevelSet, difference, intersection
+from .net import CertificateNet
 
 
 def lerp(x1: float, x2: float, rate: float):
@@ -17,44 +18,26 @@ def lerp(x1: float, x2: float, rate: float):
     return x1 * (1.0 - rate) + x2 * rate
 
 
-class JacobianModule(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.model = model
+# class JacobianModule(torch.nn.Module):
+#     def __init__(self, model):
+#         super().__init__()
+#         self.model = model
 
-    def forward(self, x):
-        y = self.model(x)
-        return JacobianOP.apply(y, x)
+#     def forward(self, x):
+#         y = self.model(x)
+#         return JacobianOP.apply(y, x)
 
 
 class generatorModule(torch.nn.Module):
-    def __init__(self, model: torch.nn.Module, sde: ControlledSDE):
+    def __init__(self, model: CertificateNet, sde: ControlledSDE):
         super().__init__()
         self.model = model
-        self.drift = sde.drift
-        self.diffusion = sde.diffusion
         self.policy = sde.policy
-        self.grad_norm = GradNorm(norm=1)
+        self.sde = sde
 
-    def forward(self, x):
-        u = self.policy(x)
-        drift = self.drift(torch.zeros((x.shape[0], 1)), x, u)
-        diffusion = self.diffusion(torch.zeros((x.shape[0], 1)), x, u)
-        v = self.model(x)
-        grad = JacobianOP.apply(v, x).squeeze(1)
-        # hess = torch.matmul(grad.T, grad)
-        # hess = JacobianOP.apply(v, grad)
-        # print(hess)
-        # hess_diag = torch.diagonal(
-        #     hess,
-        #     dim1=-2,
-        #     dim2=-1
-        # ).T
-        hess_diag = torch.square(grad)
-        result = (
-            drift * grad + 0.5 * torch.square(diffusion) * hess_diag
-        ).sum(dim=1)
-        return result
+    def forward(self, x, dvdx, d2v_dx2):
+        f = self.sde.generator(x, dvdx, d2v_dx2)
+        return f
 
 
 class SupermartingaleCertificate():
@@ -62,7 +45,7 @@ class SupermartingaleCertificate():
                  sde: ControlledSDE,
                  specification: Specification,
                  sampler: Sampler,
-                 net: Module,
+                 net: CertificateNet,
                  device: torch.device
                  ):
         super().__init__()
@@ -71,26 +54,27 @@ class SupermartingaleCertificate():
         self.sampler = sampler
         self.net = net
         self.device = device
-        dummy_x = torch.tensor(sampler.sample_space(1),
+        dummy_x = torch.tensor(sampler.sample_space(100),
                                dtype=torch.float32,
                                device=self.device
                                )
-        self.net(dummy_x)
+        dummy_d = torch.ones_like(dummy_x)
+        dummy_d2 = torch.zeros_like(dummy_x)
         self.level_verifier = BoundedModule(
             self.net,
-            dummy_x,
+            (dummy_x, dummy_d),
             device=self.device
         )
         self.decrease_verifier = BoundedModule(
             generatorModule(self.net, self.sde),
-            (dummy_x,),
+            (dummy_x, dummy_d, dummy_d2),
             device=self.device
         )
-        self.jacobian_module = BoundedModule(
-            JacobianModule(self.net),
-            (dummy_x,),
-            device=self.device
-        )
+        # self.jacobian_module = BoundedModule(
+        #     JacobianModule(self.net),
+        #     (dummy_x,),
+        #     device=self.device
+        # )
 
     def train(self,
               n_epochs: int = 10_000,
@@ -99,7 +83,7 @@ class SupermartingaleCertificate():
               n_space: int = 4096,
               batch_size: int = 256,
               lr: float = 1e-3,
-              zeta: float = 0.1,
+              zeta: float = 1e-1,
               verify_every_n: int = 1000,
               annealing: float = 0.5,
               regularizer_lambda: float = 0.001,
@@ -109,7 +93,7 @@ class SupermartingaleCertificate():
         spec = self.specification
         V = self.net
         V.train(True)
-        generator = self.sde.generator(V, spec.time_homogenous)
+        generator = self.sde.generator
         optimizer = torch.optim.Adam(self.net.parameters(), lr=lr)
         sampler = self.sampler
 
@@ -137,6 +121,7 @@ class SupermartingaleCertificate():
 
         # initialize the sets
         target_interior = spec.target_set.interior
+
         sub_beta_ra_set = SublevelSet(V, 1.0)
         non_target_area = difference(
             sub_beta_ra_set,
@@ -147,7 +132,8 @@ class SupermartingaleCertificate():
             sub_beta_ra_set.threshold * (1.0 - prob_ra)
         )
 
-        sub_beta_s_set = SublevelSet(V, sub_alpha_ra_set.threshold * 0.1)
+        sub_beta_s_set = SublevelSet(
+            V, sub_alpha_ra_set.threshold * 0.1)
         outer_area = difference(
             sub_beta_s_set,
             target_interior
@@ -244,7 +230,8 @@ class SupermartingaleCertificate():
             # print(x_outer, V(x_outer))
             if torch.numel(x_outer) != 0:
                 goal_loss_out = torch.clamp(
-                    sub_beta_s_set.threshold - V(x_outer),
+                    sub_beta_s_set.threshold -
+                    V(x_outer),
                     min=0.0
                 ).sum()
             else:
@@ -267,9 +254,29 @@ class SupermartingaleCertificate():
                 dim=0
             )
             if torch.numel(x_decrease) != 0:
-                gen_values = generator(x_decrease)
+                # n_points = x_decrease.shape[0]
+                # f_value = self.sde.f(x_decrease)
+                # g_value = self.sde.g(x_decrease)
+                # _, vjpfunc = torch.func.vjp(V, x_decrease)
+                # vjps = vjpfunc(torch.ones(
+                #     (n_points, 1), device=x_decrease.device))
+                # nabla = vjps[0]
+                # _, vjpfunc2 = torch.func.vjp(
+                #     lambda y: vjpfunc(torch.ones((n_points, 1), device=y.device))[0], x_decrease)
+                # vjps2 = vjpfunc2(torch.ones(
+                #     (n_points, 1), device=x_decrease.device))
+                # hessian_diag = vjps2[0]
+                # print(g_value.shape, hessian_diag.shape)
+                # gen_values = (f_value * nabla).sum(dim=1) + 0.5 * \
+                #     (torch.square(g_value) * hessian_diag).sum(dim=1)
+
+                _, dv_dx, d2v_dx2 = V(
+                    x_decrease,
+                    return_derivatives=True
+                )
+                gen_values = generator(x_decrease, dv_dx, d2v_dx2)
                 decrease_loss = torch.clamp(
-                    gen_values, min=-zeta).sum()
+                    gen_values + zeta, min=0.0).sum()
             else:
                 decrease_loss = 0.0
 
@@ -303,7 +310,7 @@ class SupermartingaleCertificate():
                 continue
 
             # do the gradient step
-            if (epoch + 1) % verify_every_n == 0 or epoch + 1 == n_epochs:
+            if False and (epoch + 1) % verify_every_n == 0 or epoch + 1 == n_epochs:
                 # verify
                 print("Verifying:")
 
@@ -441,32 +448,46 @@ class SupermartingaleCertificate():
                 ).squeeze()
                 decrease_cells = cells[mask, :]
                 # print(sub_alpha_s_set.threshold, sub_beta_ra_set.threshold)
-                dc = decrease_cells.detach().clone()
-                bounded_decrease_cells = self._to_bounded_tensor(
-                    dc,
-                    mesh_size=verifier_mesh_size
-                )
-                # lb_jac, ub_jac = self.jacobian_module.compute_jacobian_bounds(
-                #     x=(bounded_decrease_cells,)
-                # )
-                # print(lb_jac, ub_jac)
-                # bounded_gradient_cells = self._to_bounded_tensor(
-                #     self.jacobian_module(decrease_cells),
-                #     perturbation_lower=lb_jac,
-                #     perturbation_upper=ub_jac
-                # )
-                _, ub = self.decrease_verifier.compute_jacobian_bounds(
-                    x=(
-                        bounded_decrease_cells
+                dc = decrease_cells
+                if torch.numel(dc) > 0:
+                    bounded_decrease_cells = self._to_bounded_tensor(
+                        dc,
+                        mesh_size=verifier_mesh_size
                     )
-                )
-                mask = ub > -zeta
-                decrease_counterexamples = decrease_cells[mask, :]
-                if decrease_counterexamples.shape[0] > 0:
-                    print(
-                        f"Found {decrease_counterexamples.shape[0]} potential "
-                        "decrease condition violations."
+                    # lb_jac, ub_jac = self.jacobian_module.compute_jacobian_bounds(
+                    #     x=(bounded_decrease_cells,)
+                    # )
+                    # print(lb_jac, ub_jac)
+                    # bounded_gradient_cells = self._to_bounded_tensor(
+                    #     self.jacobian_module(decrease_cells),
+                    #     perturbation_lower=lb_jac,
+                    #     perturbation_upper=ub_jac
+                    # )
+                    df = BoundedTensor(
+                        torch.ones_like(dc),
+                        PerturbationLpNorm(eps=0)
                     )
+                    df2 = BoundedTensor(
+                        torch.zeros_like(dc),
+                        PerturbationLpNorm(eps=0)
+                    )
+                    _, ub = self.decrease_verifier.compute_bounds(
+                        x=(
+                            bounded_decrease_cells,
+                            df,
+                            df2
+                        )
+                    )
+                    # print(ub)
+                    mask = ub > -zeta
+                    decrease_counterexamples = decrease_cells[mask, :]
+                    if decrease_counterexamples.shape[0] > 0:
+                        zeta = torch.max(ub).item()
+                        print(
+                            f"Found {decrease_counterexamples.shape[0]} "
+                            "potential decrease condition violations. "
+                            f"Maximum value is {zeta}"
+                        )
 
                 print(
                     f"beta_ra is {sub_beta_ra_set.threshold}, "
