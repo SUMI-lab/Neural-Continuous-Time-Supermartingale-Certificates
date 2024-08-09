@@ -7,11 +7,11 @@ type module_type = Callable[[], nn.Module]
 
 
 class TanhLayerWithDerivatives(nn.Linear):
-    def forward(self, u, dudx=None, d2u_dx2=None, return_derivatives=False):
-        z = super().forward(u)
-        f = torch.tanh(z)
-        if not return_derivatives:
-            return f, None, None
+    def forward(self, x):
+        return torch.tanh(super().forward(x))
+
+    def forward_derivatives(self, u, dudx, d2u_dx2):
+        f = self.forward(u)
         weight = self.weight.T
         dsig = 1.0 - torch.square(f)
         d2sig = -2.0 * dsig * f
@@ -21,24 +21,25 @@ class TanhLayerWithDerivatives(nn.Linear):
 
         d2fd2x = (d2sig.unsqueeze(1) * weight).unsqueeze(2) * \
             weight.unsqueeze(0).unsqueeze(0)
-        if d2u_dx2 is not None:
-            d2fd2x = dudx.unsqueeze(
-                1) @ (d2fd2x.permute(0, 3, 1, 2) @ dudx.permute(0, 2, 1).unsqueeze(1))
-            d2fd2x = d2fd2x.permute(0, 2, 3, 1)
-
-            # extra term to compute full Hessian
-            d2fd2x += d2u_dx2 @ dfdx.unsqueeze(1)
 
         if dudx is not None:
+            d2fd2x = dudx.unsqueeze(1) @ \
+                (d2fd2x.permute(0, 3, 1, 2) @
+                 dudx.permute(0, 2, 1).unsqueeze(1))
+            d2fd2x = d2fd2x.permute(0, 2, 3, 1)
+            # print(dfdx.unsqueeze(1).shape)
+            if d2u_dx2 is not None:
+                d2fd2x += d2u_dx2 @ dfdx.unsqueeze(1)
+
             dfdx = dudx @ dfdx
         # print(f"shape is: {dfdx.shape}")
         return f, dfdx, d2fd2x
 
 
 class TanhLayerPlusOneWithDerivatives(TanhLayerWithDerivatives):
-    def forward(self, u, dudx=None, d2f_dx2=None, return_derivatives=False):
-        f, dfdx, d2f_dx2 = super().forward(u, dudx, d2f_dx2, return_derivatives)
-        return f + 1.0, dfdx, d2f_dx2
+    def forward(self, x):
+        f = super().forward(x)
+        return f + 1.0
 
 
 class CertificateNet(nn.Module):
@@ -61,20 +62,20 @@ class CertificateNet(nn.Module):
             in_features=sizes[-1], out_features=1
         )
 
-    def forward(self, u, dudx=None, d2u_dx2=None, return_derivatives=False):
-        if torch.numel(u) == 0:
-            return u
-        f = u
-        dfdx = dudx if return_derivatives else None
-        d2f_dx2 = d2u_dx2 if return_derivatives else None
+    def forward(self, u):
         for layer in self.layers:
-            f, dfdx, d2f_dx2 = layer.forward(
-                f, dfdx, d2f_dx2, return_derivatives)
-        f, dfdx, d2f_dx2 = self.final_layer(
-            f, dfdx, d2f_dx2, return_derivatives)
-        if return_derivatives:
-            dfdx = dfdx.squeeze(-1)
-            d2f_dx2 = torch.diagonal(d2f_dx2.squeeze(-1), dim1=-2, dim2=-1)
-            return f, dfdx.squeeze(-1), d2f_dx2
-        else:
-            return f
+            u = layer(u)
+        u = self.final_layer(u)
+        return u
+
+    def find_derivatives(self, u, dfdx, d2f_dx2):
+        f = u
+        n_dim = u.shape[1]
+        for layer in self.layers:
+            f, dfdx, d2f_dx2 = layer.forward_derivatives(f, dfdx, d2f_dx2)
+        f, dfdx, d2f_dx2 = self.final_layer.forward_derivatives(
+            f, dfdx, d2f_dx2
+        )
+        dfdx = dfdx.squeeze(-1)
+        d2f_dx2 = torch.diagonal(d2f_dx2.squeeze(-1), dim1=-2, dim2=-1)
+        return f, dfdx.squeeze(-1), d2f_dx2

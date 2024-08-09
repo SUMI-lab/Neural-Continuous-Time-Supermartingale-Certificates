@@ -101,8 +101,27 @@ class ControlledSDE(ABC):
         """
         f = self.f(x)
         g = self.g(x)
-        # + 0.5 * torch.square(g) * d2v_dx2).sum(dim=-1)
-        return (f * dv_dx).sum(dim=-1)
+        return (f * dv_dx + 0.5 * torch.square(g) * d2v_dx2).sum(dim=-1)
+
+    def generator_autograd(self, certificate: torch.nn.Module):
+        def v(x: tensor):
+            n_points = x.shape[0]
+            f_value = self.f(x)
+            g_value = self.g(x)
+            _, vjpfunc = torch.func.vjp(certificate, x)
+            vjps = vjpfunc(torch.ones(
+                (n_points, 1), device=x.device))
+            nabla = vjps[0]
+            _, vjpfunc2 = torch.func.vjp(
+                lambda y: vjpfunc(torch.ones((n_points, 1), device=y.device))[0], x)
+            vjps2 = vjpfunc2(torch.ones(
+                (n_points, 1), device=x.device))
+            hessian_diag = vjps2[0]
+            # print(g_value.shape, hessian_diag.shape)
+            gen_values = (f_value * nabla).sum(dim=1) + 0.5 * \
+                (torch.square(g_value) * hessian_diag).sum(dim=1)
+            return gen_values
+        return v
 
     @ torch.no_grad()
     def sample(self, x0: tensor, ts: vector, method: str = "euler",
