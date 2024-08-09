@@ -13,42 +13,15 @@ class ControlledSDE(ABC):
     The base class for controlled SDEs.
     """
 
-    def __init__(self, policy: torch.nn.Module,
+    def __init__(self, policy: torch.nn.Module, drift: torch.nn.Module,
+                 diffusion: torch.nn.Module,
                  noise_type: str, sde_type: str = "ito"):
         super().__init__()
         self.policy = policy
         self.noise_type = noise_type
         self.sde_type = sde_type
-
-    @abstractmethod
-    def drift(self, x: tensor, u: tensor) -> tensor:
-        """
-        For a process`d X_t(t, X_t, u) = f(t, X_t, u) dt + g(t, X_t, u) dW_t`
-        the drift function `f` defines the deterministic part of the dynamics.
-
-        Args:
-            t (Sequence[float] | torch.Tensor): times
-            x (torch.Tensor): states
-            u (torch.Tensor): controls
-
-        Returns:
-            torch.Tensor: the values of the controlled drift `f(t, X_t, u)`
-        """
-
-    @abstractmethod
-    def diffusion(self, x: tensor, u: tensor) -> tensor:
-        """
-        For a process`d X_t(t, X_t, u) = f(t, X_t, u) dt + g(t, X_t, u) dW_t`
-        the diffusion function `g` defines the stochastic part of the dynamics.
-
-        Args:
-            t (Sequence[float] | torch.Tensor): times
-            x (torch.Tensor): states
-            u (torch.Tensor): controls
-
-        Returns:
-            torch.Tensor: the values of the controlled diffusion `g(t, X_t, u)`
-        """
+        self.drift = drift
+        self.diffusion = diffusion
 
     def _get_u(self, x: tensor):
         return self.policy(x)

@@ -33,6 +33,31 @@ default_pendulum_data = PendulumData(
 )
 
 
+class PendulumDrift(torch.nn.Module):
+    def __init__(self, a1, a2, a3):
+        super().__init__()
+        self.a1 = a1
+        self.a2 = a2
+        self.a3 = a3
+
+    def forward(self, x: torch.Tensor, u: torch.Tensor):
+        phi, theta = torch.split(x, split_size_or_sections=(1, 1), dim=1)
+
+        f_phi = self.a1 * torch.sin(theta) + self.a2 * u - self.a3 * phi
+        f_theta = phi
+        return torch.cat([f_phi, f_theta], dim=1)
+
+
+class PendulumDiffusion(torch.nn.Module):
+    def __init__(self, sigma):
+        super().__init__()
+        self.sigma = sigma
+
+    def forward(self, x: torch.Tensor, _u: torch.Tensor):
+        g_phi = torch.full((x.shape[0], 1), self.sigma, device=x.device)
+        return torch.cat([g_phi, torch.zeros_like(g_phi)], dim=1)
+
+
 class InvertedPendulum(ControlledSDE):
     """
     Stochastic inverted pendulum.
@@ -45,31 +70,21 @@ class InvertedPendulum(ControlledSDE):
                  pendulum_data: PendulumData = default_pendulum_data,
                  gravity: float = 9.81,
                  volatility_scale: float = 2.0):
-        super().__init__(policy, "diagonal", "ito")
 
         # Precompute auxiliary constants
-        self.a1 = gravity / pendulum_data.pendulum_length
+        a1 = gravity / pendulum_data.pendulum_length
         denom = pendulum_data.ball_mass * (pendulum_data.pendulum_length ** 2)
-        self.a2 = pendulum_data.maximum_torque / denom
-        self.a3 = pendulum_data.friction / denom
-        self.sigma = volatility_scale
+        a2 = pendulum_data.maximum_torque / denom
+        a3 = pendulum_data.friction / denom
+        sigma = volatility_scale
+        drift = PendulumDrift(a1, a2, a3)
+        diffusion = PendulumDiffusion(sigma)
+
+        super().__init__(policy, drift, diffusion, "diagonal", "ito")
 
         # Initialize rendering variables
         self.rendering_data = RenderingData(
             screen_dim=500, screen=None, clock=None, surf=None)
-
-    def drift(self, x, u):
-        phi, theta = torch.split(x, split_size_or_sections=(1, 1), dim=1)
-
-        f_phi = self.a1 * torch.sin(theta) + self.a2 * u - self.a3 * phi
-        f_theta = phi
-        return torch.cat([f_phi, f_theta], dim=1)
-
-    def diffusion(self, x, _u):
-        # phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
-        # g_phi = self.sigma * phi
-        g_phi = torch.full((x.shape[0], 1), self.sigma, device=x.device)
-        return torch.cat([g_phi, torch.zeros_like(g_phi)], dim=1)
 
     def analytical_sample(self, _x0, _ts, **kwargs):
         raise NotImplementedError(

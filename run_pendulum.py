@@ -10,9 +10,6 @@ from matplotlib.patches import Rectangle
 import controlled_sde
 from rl_agent import TanhPolicy
 import stochastic_rsa as rsa
-import hessQuik.activations as act
-import hessQuik.layers as lay
-import hessQuik.networks as ntw
 
 # Seed the random number generators
 seeds = npr.randint(1, 1e5, size=(2,))
@@ -75,7 +72,7 @@ sampler = rsa.sampling.GridSampler(-high.cpu().numpy(),
                                    high.cpu().numpy())
 # sampler = rsa.sampling.SobolSampler(-high.cpu().numpy(),
 #                                     high.cpu().numpy())
-net = rsa.CertificateNet(device=device)
+net = rsa.CertificateModule(device=device)
 
 
 interest_set = rsa.membership_sets.MembershipSet(
@@ -116,9 +113,9 @@ spec = rsa.Specification(
 )
 
 certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
-certificate.train(n_epochs=5000, n_space=1000, batch_size=64, lr=1e-4,
-                  verify_every_n=1000, verifier_mesh_size=1000, zeta=1,
-                  regularizer_lambda=1e-6, decrease_lambda=1)
+certificate.train(n_epochs=5000, n_space=1000, batch_size=64, lr=1e-3,
+                  verify_every_n=1000, verifier_mesh_size=400, zeta=1e-1,
+                  regularizer_lambda=1e-2, decrease_lambda=1)
 # certificate.verify()
 
 # Initialize the batch of starting states

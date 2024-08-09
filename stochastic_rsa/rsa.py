@@ -10,7 +10,7 @@ from .sampling.grid import GridSampler
 from .sampling import Sampler
 from .specification import Specification
 from .membership_sets import SublevelSet, difference, intersection
-from .net import CertificateNet
+from .nets import CertificateModule, GeneratorModule, CertificateModuleWithDerivatives
 
 
 def lerp(x1: float, x2: float, rate: float):
@@ -18,24 +18,12 @@ def lerp(x1: float, x2: float, rate: float):
     return x1 * (1.0 - rate) + x2 * rate
 
 
-class generatorModule(torch.nn.Module):
-    def __init__(self, model: CertificateNet, sde: ControlledSDE):
-        super().__init__()
-        self.model = model
-        self.sde = sde
-
-    def forward(self, x, u, dv_dx, d2v_dx2):
-        f = self.sde.drift(x, u)
-        g = self.sde.diffusion(x, u)
-        return (f * dv_dx + 0.5 * torch.square(g) * d2v_dx2).sum(dim=-1)
-
-
 class SupermartingaleCertificate():
     def __init__(self,
                  sde: ControlledSDE,
                  specification: Specification,
                  sampler: Sampler,
-                 net: CertificateNet,
+                 net: CertificateModule,
                  device: torch.device
                  ):
         super().__init__()
@@ -48,22 +36,15 @@ class SupermartingaleCertificate():
                                dtype=torch.float32,
                                device=self.device
                                )
-        dummy_u = self.sde.policy(dummy_x)
-        dummy_d = torch.ones_like(dummy_x)
-        dummy_d2 = torch.zeros_like(dummy_x)
         self.level_verifier = BoundedModule(
             self.net,
             (dummy_x,),
             device=self.device
         )
+        self.certificateWithDerivatives = CertificateModuleWithDerivatives(
+            self.net)
         self.decrease_verifier = BoundedModule(
-            generatorModule(self.net, self.sde),
-            (dummy_x, dummy_u, dummy_d, dummy_d2),
-            device=self.device,
-            verbose=True
-        )
-        self.policy_verifier = BoundedModule(
-            self.sde.policy,
+            GeneratorModule(self.certificateWithDerivatives, self.sde),
             (dummy_x,),
             device=self.device
         )
@@ -197,7 +178,7 @@ class SupermartingaleCertificate():
                 init_loss = torch.clamp(
                     v_values[x_0] - sub_alpha_ra_set.threshold,
                     min=0.0
-                ).mean()
+                ).sum()
             else:
                 init_loss = 0.0
 
@@ -207,7 +188,7 @@ class SupermartingaleCertificate():
                 safety_loss = torch.clamp(
                     sub_beta_ra_set.threshold - v_values[x_u],
                     min=0.0
-                ).mean()
+                ).sum()
             else:
                 safety_loss = 0.0
 
@@ -242,7 +223,7 @@ class SupermartingaleCertificate():
                     sub_beta_s_set.threshold -
                     v_values[x_outer],
                     min=0.0
-                ).mean()
+                ).sum()
             else:
                 goal_loss_out = 0.0
 
@@ -258,39 +239,39 @@ class SupermartingaleCertificate():
                 # )
                 # gen_values = self.sde.generator(x_decrease, dv_dx, d2v_dx2)
                 decrease_loss = decrease_lambda * torch.clamp(
-                    gen_values + zeta, min=0.0).mean()
+                    gen_values + zeta, min=0.0).sum()
             else:
                 decrease_loss = 0.0
 
             # find the loss regularizer
             regularizer = regularizer_lambda
-            # for layer in V.children():
-            #     if isinstance(layer, torch.nn.Linear):
-            #         regularizer *= torch.linalg.matrix_norm(
-            #             layer.weight,
-            #             ord=torch.inf
-            #         )
+            for layer in V.children():
+                if isinstance(layer, torch.nn.Linear):
+                    regularizer *= torch.linalg.matrix_norm(
+                        layer.weight,
+                        ord=torch.inf
+                    )
             # compute curvature bounds on the jacobian and hessian
-            gg = 1.0
-            hh = 0.7699
-            r = [self._layer_norm(0)]
-            r.append(gg * r[0] * self._layer_norm(1))
-            r.append(gg * r[1] * self._layer_norm(2))
-            r.append(gg * r[2] * self._layer_norm(3))
-            s = [[0.0 for _ in range(3)] for _ in range(4)]
-            s[1][0] = self._layer_abs(1)
-            s[2][0] = gg * self._layer_abs(2) @ s[1][0]
-            s[2][1] = self._layer_abs(2)
-            s[3][2] = self._layer_abs(3)
-            s[3][1] = gg * self._layer_abs(3) @ s[2][1]
-            s[3][0] = gg * self._layer_abs(3) @ s[2][0]
+            # gg = 1.0
+            # hh = 0.7699
+            # r = [self._layer_norm(0)]
+            # r.append(gg * r[0] * self._layer_norm(1))
+            # r.append(gg * r[1] * self._layer_norm(2))
+            # r.append(gg * r[2] * self._layer_norm(3))
+            # s = [[0.0 for _ in range(3)] for _ in range(4)]
+            # s[1][0] = self._layer_abs(1)
+            # s[2][0] = gg * self._layer_abs(2) @ s[1][0]
+            # s[2][1] = self._layer_abs(2)
+            # s[3][2] = self._layer_abs(3)
+            # s[3][1] = gg * self._layer_abs(3) @ s[2][1]
+            # s[3][0] = gg * self._layer_abs(3) @ s[2][0]
             # print(s[3][0].max(dim=1))
-            h_bound = hh * sum(
-                (r[i] ** 2) * torch.max(s[3][i], dim=1)[0]
-                for i in range(0, 3)
-            )
-            j_bound = r[2]
-            regularizer = regularizer_lambda * (h_bound + j_bound)
+            # h_bound = hh * sum(
+            #     (r[i] ** 2) * torch.max(s[3][i], dim=1)[0]
+            #     for i in range(0, 3)
+            # )
+            # j_bound = r[2]
+            # regularizer = regularizer_lambda * (h_bound + j_bound)
 
             # find the total loss
             loss = init_loss + safety_loss + \
@@ -321,7 +302,7 @@ class SupermartingaleCertificate():
             # do the gradient step
             if (epoch + 1) % verify_every_n == 0 or epoch + 1 == n_epochs:
                 # verify
-                print("Verifying:")
+                print("=== Verification phase ===")
 
                 # Verification step 1. Find sublevel set covers with perturbation analysis
                 cell_lb, cell_ub = self._bound_estimate(
@@ -442,31 +423,28 @@ class SupermartingaleCertificate():
                         decrease_cells,
                         mesh_size=verifier_mesh_size
                     )
-                    lb_u, ub_u = self.policy_verifier.compute_bounds(
-                        x=(bounded_decrease_cells,),
-                        method="IBP"
-                    )
-                    lb_u = torch.clip(lb_u, min=-1.0, max=1.0)
-                    ub_u = torch.clip(ub_u, min=-1.0, max=1.0)
-                    mid_u = self.policy_verifier(bounded_decrease_cells)
-                    bounded_u = BoundedTensor(
-                        mid_u,
-                        PerturbationLpNorm(x_L=lb_u, x_U=ub_u)
-                    )
-                    df = BoundedTensor(
-                        torch.zeros_like(decrease_cells),
-                        PerturbationLpNorm(eps=j_bound.detach())
-                    )
-                    df2 = BoundedTensor(
-                        torch.zeros_like(decrease_cells),
-                        PerturbationLpNorm(eps=h_bound.detach())
-                    )
+                    # lb_u, ub_u = self.policy_verifier.compute_bounds(
+                    #     x=(bounded_decrease_cells,),
+                    #     method="IBP"
+                    # )
+                    # lb_u = torch.clip(lb_u, min=-1.0, max=1.0)
+                    # ub_u = torch.clip(ub_u, min=-1.0, max=1.0)
+                    # mid_u = self.policy_verifier(bounded_decrease_cells)
+                    # bounded_u = BoundedTensor(
+                    #     mid_u,
+                    #     PerturbationLpNorm(x_L=lb_u, x_U=ub_u)
+                    # )
+                    # df = BoundedTensor(
+                    #     torch.zeros_like(decrease_cells),
+                    #     PerturbationLpNorm(eps=j_bound.detach())
+                    # )
+                    # df2 = BoundedTensor(
+                    #     torch.zeros_like(decrease_cells),
+                    #     PerturbationLpNorm(eps=h_bound.detach())
+                    # )
                     _, ub = self.decrease_verifier.compute_bounds(
                         x=(
                             bounded_decrease_cells,
-                            bounded_u,
-                            df,
-                            df2
                         ),
                         method="IBP"
                     )
@@ -495,28 +473,23 @@ class SupermartingaleCertificate():
                         prob_s_estimate > self.specification.stay_probability:
                     return True, prob_ra_estimate, prob_s_estimate
 
-        return False  # , prob_ra_estimate, prob_s_estimate
+        return False, prob_ra_estimate, prob_s_estimate
 
-    def _layer_abs(self, i):
-        if i >= 3:
-            return torch.tensor([[1.0]])
-        return torch.abs(self._find_layer(i).weight)
+    # def _layer_abs(self, i):
+    #     if i >= 3:
+    #         return torch.tensor([[1.0]])
+    #     return torch.abs(self._find_layer(i).weight)
 
-    def _layer_norm(self, i):
-        if i >= 3:
-            return torch.tensor(1.0)
-        return torch.linalg.matrix_norm(
-            self._find_layer(i).weight,
-            ord=torch.inf
-        )
+    # def _layer_norm(self, i):
+    #     if i >= 3:
+    #         return torch.tensor(1.0)
+    #     return torch.linalg.matrix_norm(
+    #         self._find_layer(i).weight,
+    #         ord=torch.inf
+    #     )
 
     def _find_layer(self, i):
-        if i == 0:
-            return self.net.layers[0]
-        elif i == 1:
-            return self.net.layers[1]
-        else:
-            return self.net.final_layer
+        return self.net[i]
 
     def _to_bounded_tensor(
         self,
