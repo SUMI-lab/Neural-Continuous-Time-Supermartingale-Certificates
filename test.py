@@ -1,32 +1,24 @@
 import torch
 import auto_LiRPA
+from auto_LiRPA.bound_general import BoundSqr
 
 
 class TanhWithDerivatives(torch.nn.Linear):
-    def forward(self, u: torch.Tensor, dudx: torch.Tensor):
-        f = torch.tanh(super().forward(u))
+    def forward(self, u: torch.Tensor, b: torch.Tensor, f1: torch.Tensor, f2: torch.Tensor):
+        z = super().forward(u)
+        a = torch.tanh(z)
         weight = self.weight.T
-        dsig = 1.0 - torch.square(f)
-        # d2sig = -2.0 * dsig * f
+        dsig = (1.0 - torch.square(a))
+        d2sig = -2 * a * dsig
 
         # print(z.shape, f.shape, dsig.shape, d2sig.shape, weight.shape)
-        dfdx = dsig.unsqueeze(1) * weight
-        dfdx = dudx @ dfdx
+        multiplier = dsig.unsqueeze(1) * weight
 
-        # d2fd2x = (d2sig.unsqueeze(1) * weight).unsqueeze(2) * \
-        #     weight.unsqueeze(0).unsqueeze(0)
+        b_next = b @ multiplier
+        f1_next = f1 @ multiplier
+        f2_next = f2 @ multiplier
 
-        # if dudx is not None:
-        #     d2fd2x = dudx.unsqueeze(1) @ \
-        #         (d2fd2x.permute(0, 3, 1, 2) @
-        #          dudx.permute(0, 2, 1).unsqueeze(1))
-        #     d2fd2x = d2fd2x.permute(0, 2, 3, 1)
-        #     # print(dfdx.unsqueeze(1).shape)
-        #     if d2u_dx2 is not None:
-        #         d2fd2x += d2u_dx2 @ dfdx.unsqueeze(1)
-
-        # print(f"shape is: {dfdx.shape}")
-        return f, dfdx
+        return a, d2sig, b_next, f1_next, f2_next
 
 
 class Policy(torch.nn.Sequential):
@@ -73,13 +65,21 @@ class Certificate(torch.nn.Sequential):
             TanhWithDerivatives(32, 1),
         )
 
-    def forward(self, x: torch.Tensor):
-        v = x
-        n_samples = x.shape[0]
-        dv_dx = torch.tile(torch.eye(2).unsqueeze(0), (n_samples, 1, 1))
-        for layer in self.children():
-            v, dv_dx = layer(v, dv_dx)
-        return v, dv_dx
+    def forward(self, x: torch.Tensor, dx_dx: torch.Tensor,
+                dummy_f1: torch.Tensor,
+                dummy_f2: torch.Tensor
+                ):
+        a0, b0, f01, f00 = x, dx_dx, dummy_f1, dummy_f2
+        a1, d2sig1, b1, f11, f10 = self[0](a0, b0, f01, f00)
+        a2, d2sig2, b2, f21, f20 = self[1](a1, b1, f11, f10)
+        a3, d2sig3, b3, f31, f30 = self[2](a2, b2, f21, f20)
+        jacobian = b3.squeeze(-1)
+        hessian = b1 @ (b1.transpose(1, 2) * (d2sig1.unsqueeze(-1) * f31))
+        hessian += b2 @ (b2.transpose(1, 2) * (d2sig2.unsqueeze(-1) * f30))
+        hessian += b3 @ (b3.transpose(1, 2) * d2sig3.unsqueeze(-1))
+        second_derivative = torch.cat(
+            (hessian[:, 0, 0].unsqueeze(0), hessian[:, 1, 1].unsqueeze(0)), dim=0).T
+        return a3 + 1.0, jacobian, second_derivative
 
 
 class GeneratorModule(torch.nn.Module):
@@ -90,20 +90,32 @@ class GeneratorModule(torch.nn.Module):
         self.diffusion = Diffusion()
         self.certificate = Certificate()
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, dx_dx, f1, f2):
         u = self.policy(x)
         f = self.drift(x, u)
         g = self.diffusion(x, u)
-        v, dv_dx = self.certificate(x)
-        print(f.shape, g.shape, v.shape, dv_dx.shape)
-        return (f + g).sum(dim=1) + v.sum(dim=1)
+        v, dv_dx, d2v_dx2 = self.certificate(x, dx_dx, f1, f2)
+        # = self.certificate(dv_dx, )
+        # print(f.shape, g.shape, v.shape, dv_dx.shape)
+        return (f * dv_dx + 0.5 * torch.square(g) * d2v_dx2).sum(dim=1)
 
 
 x = torch.tensor([[0, 0], [1, 1], [2, 2]], dtype=torch.float32)
+dx_dx = torch.tile(torch.eye(2).unsqueeze(0), (3, 1, 1))
+# d2x_dx2 = torch.zeros((3, 1, 2, 2))
 dummy_x = torch.empty_like(x, dtype=torch.float32)
 perturbation = auto_LiRPA.PerturbationLpNorm(eps=0.5)
+zero_perturbation = auto_LiRPA.PerturbationLpNorm(eps=0.0)
 x_bounded = auto_LiRPA.BoundedTensor(x, perturbation)
+dx_dx_bounded = auto_LiRPA.BoundedTensor(dx_dx, zero_perturbation)
+# d2x_dx2_bounded = auto_LiRPA.BoundedTensor(d2x_dx2, zero_perturbation)
+f1 = torch.zeros((3, 32, 2))
+f2 = torch.zeros((3, 32, 2))
+f1_bounded = auto_LiRPA.BoundedTensor(f1, zero_perturbation)
+f2_bounded = auto_LiRPA.BoundedTensor(f2, zero_perturbation)
 gen = GeneratorModule()
-m_bounded = auto_LiRPA.BoundedModule(gen, (dummy_x,))
+m_bounded = auto_LiRPA.BoundedModule(
+    gen, (dummy_x, torch.empty_like(dx_dx), f1, f2))
 
-print(m_bounded.compute_bounds(x_bounded))
+print(m_bounded.compute_bounds(
+    (x_bounded, dx_dx_bounded, f1_bounded, f2_bounded), method="IBP"))
