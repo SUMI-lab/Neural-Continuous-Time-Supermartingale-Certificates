@@ -26,7 +26,7 @@ class ControlledSDE(ABC):
     def _get_u(self, x: tensor):
         return self.policy(x)
 
-    def f(self, x: tensor) -> tensor:
+    def f(self, _t, x: tensor) -> tensor:
         """
         For a process`d X_t(t, X_t, u) = f(t, X_t, u) dt + g(t, X_t, u) dW_t`
         returns the drift `f_pi(t, X_t) = f(t, X_t, pi(t, X_t))` under the
@@ -42,7 +42,7 @@ class ControlledSDE(ABC):
         u = self._get_u(x)
         return self.drift(x, u)
 
-    def g(self, x: tensor) -> tensor:
+    def g(self, _t, x: tensor) -> tensor:
         """
         For a process`d X_t(t, X_t, u) = f(t, X_t, u) dt + g(t, X_t, u) dW_t`
         returns the diffusion `g_pi(t, X_t) = g(t, X_t, pi(t, X_t))` under the
@@ -72,15 +72,15 @@ class ControlledSDE(ABC):
         Returns:
             torch.Tensor: the value of the generator at the point
         """
-        f = self.f(x)
-        g = self.g(x)
+        f = self.f(None, x)
+        g = self.g(None, x)
         return (f * dv_dx + 0.5 * torch.square(g) * d2v_dx2).sum(dim=-1)
 
     def generator_autograd(self, certificate: torch.nn.Module):
         def v(x: tensor):
             n_points = x.shape[0]
-            f_value = self.f(x)
-            g_value = self.g(x)
+            f_value = self.f(None, x)
+            g_value = self.g(None, x)
             _, vjpfunc = torch.func.vjp(certificate, x)
             vjps = vjpfunc(torch.ones(
                 (n_points, 1), device=x.device))

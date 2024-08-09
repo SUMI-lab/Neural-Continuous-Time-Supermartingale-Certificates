@@ -113,17 +113,16 @@ spec = rsa.Specification(
 )
 
 certificate = rsa.SupermartingaleCertificate(sde, spec, sampler, net, device)
-certificate.train(n_epochs=5000, n_space=1000, batch_size=64, lr=1e-3,
-                  verify_every_n=1000, verifier_mesh_size=400, zeta=1e-1,
+certificate.train(n_epochs=100000, n_space=1000, batch_size=64, lr=1e-3,
+                  verify_every_n=1000, verifier_mesh_size=100, zeta=1e-1,
                   regularizer_lambda=1e-2, decrease_lambda=1)
-# certificate.verify()
 
 # Initialize the batch of starting states
-# x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
-#                   device=device).expand(BATCH_SIZE, -1)
-# ts = torch.linspace(0, DURATION, T_SIZE, device=device)
+x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
+                  device=device).expand(4, -1)
+ts = torch.linspace(0, DURATION, T_SIZE, device=device)
 
-# sample_paths = sde.sample(x0, ts, method="srk").squeeze()
+sample_paths = sde.sample(x0, ts, method="srk").squeeze()
 
 # Plot
 fig, ax1 = plt.subplots(1, 1)
@@ -173,10 +172,10 @@ ax1.add_patch(Rectangle((-6, 0), -2, -torch.pi,
                         facecolor='none',
                         lw=2))
 
-# path_data = sample_paths.cpu().numpy()
-# ax1.plot(path_data[:, :, 0], path_data[:, :, 1],
-#          color="white", alpha=0.1, lw=1
-#          )
+path_data = sample_paths.cpu().numpy()
+ax1.plot(path_data[:, :, 0], path_data[:, :, 1],
+         color="white", alpha=0.1, lw=1
+         )
 
 plt.show()
 
