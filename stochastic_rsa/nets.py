@@ -4,6 +4,8 @@ import torch.nn as nn
 
 
 class CertificateModule(torch.nn.Sequential):
+    """The RSA certificate"""
+
     def __init__(
         self,
         n_in: int = 2,
@@ -21,21 +23,35 @@ class CertificateModule(torch.nn.Sequential):
         )
 
     def activation_derivative(self, x: torch.Tensor):
+        """derivative of the activation function"""
         return 1.0 - torch.square(torch.tanh(x))
 
     def activation_second_derivative(self, x: torch.Tensor):
+        """second derivative of the activation function"""
         return -2 * torch.tanh(x) * self.activation_derivative(x)
 
     def forward(self, x: torch.Tensor):
+        """forward call, must be nonnegative"""
         return super().forward(x) + 1.0
 
 
 class CertificateModuleWithDerivatives(torch.nn.Module):
+    """The RSA wrapper that also computes the derivatives"""
+
     def __init__(self, module: CertificateModule):
         super().__init__()
         self.module = module
 
     def forward(self, x: torch.Tensor):
+        """Forward call that additioanlly returns Jacobian and Hessian
+
+        Args:
+            x (torch.Tensor): input tensor
+
+        Returns:
+            a tuple of three tensors: (V(x), J_x V(x), H_x V(x)), that is
+            the certificate value, its Jacobian, and its Hessian.
+        """
         # Using Lemma 1 from
         # http://proceedings.mlr.press/v119/singla20a/singla20a.pdf.
         # The Jacobian is b3 defined as
@@ -96,6 +112,10 @@ class CertificateModuleWithDerivatives(torch.nn.Module):
 
 
 class GeneratorModule(torch.nn.Module):
+    """
+    A module to compute the SDE's infinitesimal generator of a torch Module.
+    """
+
     def __init__(self, certificate: CertificateModuleWithDerivatives, sde: ControlledSDE):
         super().__init__()
         self.policy = sde.policy
