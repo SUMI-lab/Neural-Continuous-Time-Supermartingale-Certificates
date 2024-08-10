@@ -65,8 +65,7 @@ MAX_SPEED = 10.0
 MAX_ANGLE = 1.5 * torch.pi
 
 high = torch.tensor([MAX_SPEED, MAX_ANGLE], device=device)
-sampler = rsa.sampling.GridSampler(-high.cpu().numpy(),
-                                   high.cpu().numpy())
+sampler = rsa.sampling.GridSampler(-high.numpy(), high.numpy())
 # sampler = rsa.sampling.SobolSampler(-high.cpu().numpy(),
 #                                     high.cpu().numpy())
 net = rsa.CertificateModule(device=device)
