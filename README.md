@@ -1,4 +1,4 @@
-# Neural Supermartingale Certificates for Reach-Stay-Avoidance in Continuous Time
+# Neural Continuous-Time Supermartingale Certificates
 
 This repository contains code for the paper _Neural Supermartingale Certificates for Reach-Stay-Avoidance in Continuous Time_ by ANONYMOUS AUTHORS.
 
