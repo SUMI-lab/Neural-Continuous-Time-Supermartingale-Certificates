@@ -1,46 +1,33 @@
 import torch
 from controlled_sde import ControlledSDE
-
-
-class TanhWithDerivatives(torch.nn.Linear):
-    def forward(self, u: torch.Tensor, b: torch.Tensor, f: torch.Tensor):
-        # print(f"in: {u.shape}")
-        z = super().forward(u)
-        a = torch.tanh(z)
-        weight = self.weight.T.unsqueeze(0)
-        dsig = (1.0 - torch.square(a))
-        d2sig = -2 * a * dsig
-
-        # print(z.shape, f.shape, dsig.shape, d2sig.shape, weight.shape)
-        multiplier = dsig.unsqueeze(1) * weight
-        # print(f"out: {z.shape}, {a.shape}, {dsig.shape}")
-        # print(f"weights: {weight.shape}")
-        if b is not None:
-            # print(f"b: {b.shape}, {multiplier.shape}")
-            b_next = b @ multiplier
-        else:
-            b_next = multiplier
-        if f is not None:
-            # print(f"f1: {f1.shape}, {multiplier.shape}")
-            f_next = f @ multiplier
-        else:
-            f_next = multiplier
-
-        return a, dsig.unsqueeze(1), d2sig.unsqueeze(2), b_next, f_next
+import torch.nn as nn
 
 
 class CertificateModule(torch.nn.Sequential):
-    def __init__(self, device: torch.device):
+    def __init__(
+        self,
+        n_in: int = 2,
+        n_out: int = 1,
+        n_hidden: int = 32,
+        device: torch.device | str = "cpu"
+    ):
         super().__init__(
-            TanhWithDerivatives(2, 32, device=device),
-            TanhWithDerivatives(32, 32, device=device),
-            TanhWithDerivatives(32, 1, device=device),
+            nn.Linear(n_in, n_hidden, dtype=torch.float32, device=device),
+            nn.Tanh(),
+            nn.Linear(n_hidden, n_hidden, dtype=torch.float32, device=device),
+            nn.Tanh(),
+            nn.Linear(n_hidden, n_out, dtype=torch.float32, device=device),
+            nn.Tanh()
         )
 
+    def activation_derivative(self, x: torch.Tensor):
+        return 1.0 - torch.square(torch.tanh(x))
+
+    def activation_second_derivative(self, x: torch.Tensor):
+        return -2 * torch.tanh(x) * self.activation_derivative(x)
+
     def forward(self, x: torch.Tensor):
-        for layer in self:
-            x, _, _, _, _ = layer(x, None, None)
-        return x + 1.0
+        return super().forward(x) + 1.0
 
 
 class CertificateModuleWithDerivatives(torch.nn.Module):
@@ -51,31 +38,61 @@ class CertificateModuleWithDerivatives(torch.nn.Module):
     def forward(self, x: torch.Tensor):
         # Using Lemma 1 from
         # http://proceedings.mlr.press/v119/singla20a/singla20a.pdf.
-        # We need need f41, f42, f43
-        # f41 = f31 @ sig3
-        # f42 = f32 @ sig3
-        # f43 = I
-        # f31 = f21 @ (w3 * sig 2)
-        # f32 = w3
+        # The Jacobian is b3 defined as
+        # b0 = w0
+        # b1 = (w1 * sigma'(z0)) @ b0
+        # b2 = (w2 * sigma'(z1)) @ b1
+        # b3 = sigma'(z2) @ b2
+        # For the hessian,
+        # H = sum_{i=0}^{2} bi.T @ (f3i * sigma''(zi) * bi)
+        # We need to compute f30, f31, f32
+        # f10 = w1
+        # f20 = (w2 * sigma'(z2)) @ f10 = (w2 * sigma'(z2)) @ w1
         # f21 = w2
+        # f30 = sigma'(z2) @ f20
+        # f31 = sigma'(z2) @ f21 = sigma'(z2) @ w2
+        # f32 = 1
+        # This can probably be automated in the future, but currently we got
+        # an error when trying to implement it in a loop and passing it to
+        # auto_LiRPA. This might even change before the final submission if
+        # there is an auto_LiRPA update. For now do the calculations manually.
+        # It is also easier to compare to the explicit formula.
 
-        a0 = x
-        a1, _, sig1, _, _ = self.module[0](a0, None, None)
-        b1 = self.module[0].weight.T.unsqueeze(0)
-        a2, _, sig2, b2, _ = self.module[1](a1, b1, None)
-        f21 = self.module[1].weight.T.unsqueeze(0)
-        a3, sigma_final, sig3, b3, f31 = self.module[2](a2, b2, f21)
-        b4 = b3 @ sigma_final
-        f32 = self.module[2].weight.T.unsqueeze(0)
-        f41 = f31 @ sigma_final
-        f42 = f32 @ sigma_final
+        out = [x]  # find the layer outputs [a0=x, z1, a1, z2, a2, z3, a3]
+        for layer in self.module:
+            out.append(layer(out[-1]))
 
-        jacobian = b4.squeeze(-1)
-        hessian = b1 @ (b1.transpose(1, 2) * (sig1 * f41))
-        hessian += b2 @ (b2.transpose(1, 2) * (sig2 * f42))
-        hessian += b3 @ (b3.transpose(1, 2) * sig3)
+        z = [out[1], out[3], out[5]]  # outputs of linear layers, we need these
 
-        return a3 + 1.0, jacobian, hessian
+        # compute the activation derivatives
+        dsigma = [self.module.activation_derivative(
+            zi).unsqueeze(1) for zi in z]
+        d2sigma = [self.module.activation_second_derivative(
+            zi).unsqueeze(1) for zi in z]
+
+        # extract the weight matrices, add a dimension in front because of the
+        # batch computation
+        w = [self.module[i].weight.unsqueeze(0) for i in range(0, 5, 2)]
+
+        # find Jacobians b[i] of z[i] w.r.t x
+        b = [w[0]]
+        for i in range(0, 2):
+            b.append((w[i+1] * dsigma[i]) @ b[i])
+        # final Jacobian
+        jacobian = dsigma[2] @ b[2]
+
+        # find Jacobians fij of z[i] with respect to a[j]
+        f20 = (w[2] * dsigma[2]) @ w[1]
+        f30 = dsigma[2] @ f20
+        f31 = dsigma[2] @ w[2]
+
+        # compute the Hessian, torch.permute(b[0], (0, 2, 1)) is transposing
+        # dimensions 2 and 1 (dimension 0 is the batch indexing dimension)
+        hessian = (f30 * d2sigma[0] * torch.permute(b[0], (0, 2, 1))) @ b[0] + \
+            (f31 * d2sigma[1] * torch.permute(b[1], (0, 2, 1))) @ b[1] + \
+            (d2sigma[2] * torch.permute(b[2], (0, 2, 1))) @ b[2]
+
+        return out[-1] + 1.0, jacobian, hessian  # don't forget to add 1!
 
 
 class GeneratorModule(torch.nn.Module):
@@ -87,10 +104,17 @@ class GeneratorModule(torch.nn.Module):
         self.certificate = certificate
 
     def forward(self, x: torch.Tensor):
+        # Ideally, would like to call self.sde.generator(x, dv_dx, d2v_dx2)
+        # but auto_LiRPA does not support this. Instead, extract from the SDE
+        # the three networks (policy, drift, diffusion), and calculate the
+        # generator here.
         u = self.policy(x)
         f = self.drift(x, u)
         g = self.diffusion(x, u)
-        _, dv_dx, hessian = self.certificate(x)
+        _, jacobian, hessian = self.certificate(x)
+        dv_dx = jacobian.squeeze(1)
         d2v_dx2 = torch.cat(
-            (hessian[:, 0, 0].unsqueeze(0), hessian[:, 1, 1].unsqueeze(0)), dim=0).T
+            (hessian[:, 0, 0].unsqueeze(0), hessian[:, 1, 1].unsqueeze(0)),
+            dim=0
+        ).T  # extract the diagonal; tried torch.diagonal, LiRPA complains
         return (f * dv_dx + 0.5 * torch.square(g) * d2v_dx2).sum(dim=1)

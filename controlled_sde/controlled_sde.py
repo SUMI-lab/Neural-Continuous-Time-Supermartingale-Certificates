@@ -1,10 +1,9 @@
 """Provides the base class for controlled SDEs."""
-
-from abc import ABC, abstractmethod
+from abc import ABC
 import torch
-import torch.autograd as ag
 import torchsde
 import torchsde.types
+from .test import jacobian_hessian
 
 
 class ControlledSDE(ABC):
@@ -83,34 +82,6 @@ class ControlledSDE(ABC):
             f * gradient + 0.5 * torch.square(g) * hessian_diagonal
         ).sum(dim=-1)
         return generator_value
-
-    def generator_autograd(self, function: torch.nn.Module):
-        """
-        Computes the infinitesimal generator of the SDE's Feller-Dynkin process
-        as a function, using torch.autograd
-
-        Args:
-            function (torch.nn.Module): the function
-        """
-        def v(x: torch.Tensor):
-            n_points = x.shape[0]
-            f_value = self.f(None, x)
-            g_value = self.g(None, x)
-            _, vjpfunc = torch.func.vjp(function, x)
-            vjps = vjpfunc(torch.ones(
-                (n_points, 1), device=x.device))
-            nabla = vjps[0]
-            _, vjpfunc2 = torch.func.vjp(
-                lambda _: vjpfunc(torch.ones((n_points, 1), device=x.device))[0], x)
-            vjps2 = vjpfunc2(torch.ones(
-                (n_points, 1), device=x.device))
-            hessian_diag = vjps2[0]
-
-            gen_values = (f_value * nabla).sum(dim=-1) + 0.5 * \
-                (torch.square(g_value) * hessian_diag).sum(dim=-1)
-
-            return gen_values
-        return v
 
     @torch.no_grad()
     def sample(

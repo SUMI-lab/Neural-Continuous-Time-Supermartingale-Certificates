@@ -32,7 +32,7 @@ class SupermartingaleCertificate():
         self.sampler = sampler
         self.net = net
         self.device = device
-        dummy_x = torch.tensor(sampler.sample_space(1),
+        dummy_x = torch.tensor(sampler.sample_space(100),
                                dtype=torch.float32,
                                device=self.device
                                )
@@ -41,10 +41,15 @@ class SupermartingaleCertificate():
             (dummy_x,),
             device=self.device
         )
-        self.certificateWithDerivatives = CertificateModuleWithDerivatives(
-            self.net)
+        self.certificate_with_derivatives = CertificateModuleWithDerivatives(
+            self.net
+        )
+        self.generator = GeneratorModule(
+            self.certificate_with_derivatives,
+            self.sde
+        )
         self.decrease_verifier = BoundedModule(
-            GeneratorModule(self.certificateWithDerivatives, self.sde),
+            self.generator,
             (dummy_x,),
             device=self.device
         )
@@ -68,6 +73,7 @@ class SupermartingaleCertificate():
         spec = self.specification
         V = self.net
         V.train(True)
+        generator = self.generator
         # generator = self.sde.generator
         optimizer = torch.optim.Adam(self.net.parameters(), lr=lr)
         sampler = self.sampler
@@ -235,7 +241,7 @@ class SupermartingaleCertificate():
 
                 # dx_dx = torch.tile(torch.eye(x_decrease.shape[2]))
                 # _, dv_dx, d2v_dx2 = V.find_derivatives(x_decrease, None, None)
-                gen_values = self.sde.generator_autograd(V)(x_decrease)
+                gen_values = generator(x_decrease)
                 # _, dv_dx, d2v_dx2 = V.find_derivatives(
                 #     x_decrease, None, None
                 # )
