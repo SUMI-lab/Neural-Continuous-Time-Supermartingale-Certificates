@@ -1,6 +1,3 @@
-import hessQuik.networks as net
-import hessQuik.layers as lay
-import hessQuik.activations as act
 import torch
 import numpy as np
 import numpy.random as npr
