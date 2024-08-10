@@ -1,9 +1,9 @@
+auto_LiRPA @ file:./auto_LiRPA
 gymnasium==0.29.1
-matplotlib==3.9.1
-numpy==2.0.1
-pygame==2.6.0
+matplotlib==3.9.1.post1
+numpy==1.26.4
 scipy==1.14.0
-setuptools==72.1.0
-torch==2.4.0
-torchrl==0.5.0
+torch==2.2.2
 torchsde==0.2.6
+torchvision==0.17.2
+tqdm==4.66.5

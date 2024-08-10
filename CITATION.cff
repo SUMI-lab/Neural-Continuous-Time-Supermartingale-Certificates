@@ -15,6 +15,7 @@ abstract: >-
   This software contains code for the paper _Neural Supermartingale Certificates for Reach-Stay-Avoidance in Continuous Time_
 keywords:
   - Neural supermartingale certificate
+  - Neural control
   - Stochastic process theory
   - Stochastic differential equations
   - Reach-stay-avoidance
