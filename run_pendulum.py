@@ -53,7 +53,7 @@ def policy_do_nothing(x: torch.Tensor) -> torch.Tensor:
     return torch.zeros((x.size(0),), device=device).unsqueeze(1)
 
 
-rl_policy_net = TanhPolicy(1, 64, device=device)
+rl_policy_net = TanhPolicy(2, 1, 64, device=device)
 rl_policy_net.load_state_dict(torch.load(
     "rl_agent/pendulum_policy.pt",
     map_location=device,
