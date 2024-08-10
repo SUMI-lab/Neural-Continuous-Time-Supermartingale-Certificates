@@ -3,7 +3,6 @@ from abc import ABC
 import torch
 import torchsde
 import torchsde.types
-from .test import jacobian_hessian
 
 
 class ControlledSDE(ABC):

@@ -1,15 +1,13 @@
 from typing import Sequence
 import torch
-from torch.nn import Module
 import tqdm
 from auto_LiRPA import BoundedModule, BoundedTensor
 from auto_LiRPA.perturbations import PerturbationLpNorm
-from auto_LiRPA.operators.jacobian import JacobianOP, GradNorm
 from controlled_sde import ControlledSDE
 from .sampling.grid import GridSampler
 from .sampling import Sampler
 from .specification import Specification
-from .membership_sets import SublevelSet, difference, intersection
+from .membership_sets import SublevelSet, difference
 from .nets import CertificateModule, GeneratorModule, CertificateModuleWithDerivatives
 
 
