@@ -89,6 +89,7 @@ class SupermartingaleCertificate():
         x_star = torch.zeros((1, n_dim), device=self.device)
         decrease_counterexamples = torch.zeros((1, n_dim), device=self.device)
         x_outer_counterexamples = torch.empty((0, n_dim), device=self.device)
+        n_decrease_counterexamples, n_counterexamples = 0, 0
 
         # compute the threshold constants
         prob_ra = spec.reach_avoid_probability
