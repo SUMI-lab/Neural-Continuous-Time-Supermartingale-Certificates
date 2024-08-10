@@ -61,7 +61,8 @@ class SupermartingaleCertificate():
               annealing: float = 0.5,
               regularizer_lambda: float = 1e-3,
               decrease_lambda: float = 1e-8,
-              verifier_mesh_size: int = 41
+              verifier_mesh_size: int = 41,
+              starting_level: float = 1.0
               ):
         # initialize auxiliary variables
         spec = self.specification
@@ -96,14 +97,14 @@ class SupermartingaleCertificate():
         # initialize the sets
         target_interior = spec.target_set.interior
 
-        sub_beta_ra_set = SublevelSet(V, 1.0)
+        sub_beta_ra_set = SublevelSet(V, starting_level)
         non_target_area = difference(
             sub_beta_ra_set,
             target_interior
         )
         sub_alpha_ra_set = SublevelSet(
             V,
-            sub_beta_ra_set.threshold * (1.0 - prob_ra)
+            sub_beta_ra_set.threshold * (1.0 - prob_ra) / 2
         )
 
         sub_beta_s_set = SublevelSet(
@@ -114,7 +115,7 @@ class SupermartingaleCertificate():
         )
         sub_alpha_s_set = SublevelSet(
             V,
-            sub_beta_s_set.threshold * (1.0 - prob_stay)
+            sub_beta_s_set.threshold * (1.0 - prob_stay) / 2
         )
         beta_ra_alpha_s_band = difference(
             sub_beta_ra_set,
