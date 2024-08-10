@@ -116,8 +116,8 @@ certificate.train(n_epochs=100000, n_space=1000, batch_size=64, lr=1e-3,
 
 # Initialize the batch of starting states
 x0 = torch.tensor([STARTING_SPEED, STARTING_ANGLE],
-                  device=device).expand(4, -1)
-ts = torch.linspace(0, DURATION, T_SIZE, device=device)
+                  device=device).unsqueeze(0)
+ts = torch.linspace(0, 0.1*DURATION, T_SIZE, device=device)
 
 sample_paths = sde.sample(x0, ts, method="srk").squeeze()
 
@@ -170,8 +170,8 @@ ax1.add_patch(Rectangle((-6, 0), -2, -torch.pi,
                         lw=2))
 
 path_data = sample_paths.cpu().numpy()
-ax1.plot(path_data[:, :, 0], path_data[:, :, 1],
-         color="white", alpha=0.1, lw=1
+ax1.plot(path_data[:, 0], path_data[:, 1],
+         color="white", lw=2
          )
 
 plt.show()
