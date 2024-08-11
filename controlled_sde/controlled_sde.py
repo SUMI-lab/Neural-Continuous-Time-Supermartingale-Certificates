@@ -1,5 +1,5 @@
 """Provides the base class for controlled SDEs."""
-from abc import ABC
+from abc import ABC, abstractmethod
 import torch
 import torchsde
 import torchsde.types
@@ -116,3 +116,7 @@ class ControlledSDE(ABC):
 
     def close(self):
         """Ensure that the SDE object is released properly."""
+
+    @abstractmethod
+    def n_dimensions(self) -> int:
+        """Number of dimension of the problem"""

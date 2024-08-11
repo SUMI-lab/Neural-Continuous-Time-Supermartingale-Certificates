@@ -1,6 +1,6 @@
 import torch
-from controlled_sde import ControlledSDE
 import torch.nn as nn
+from controlled_sde import ControlledSDE
 
 
 class CertificateModule(torch.nn.Sequential):
@@ -19,7 +19,7 @@ class CertificateModule(torch.nn.Sequential):
             nn.Linear(n_hidden, n_hidden, dtype=torch.float32, device=device),
             nn.Tanh(),
             nn.Linear(n_hidden, n_out, dtype=torch.float32, device=device),
-            nn.Tanh()
+            nn.Softplus()
         )
 
     def activation_derivative(self, x: torch.Tensor):
@@ -30,9 +30,27 @@ class CertificateModule(torch.nn.Sequential):
         """second derivative of the activation function"""
         return -2 * torch.tanh(x) * self.activation_derivative(x)
 
+    # def activation_derivative_last(self, x: torch.Tensor):
+    #     """derivative of the activation function"""
+    #     return 1.0 - torch.square(torch.tanh(x))
+
+    # def activation_second_derivative_last(self, x: torch.Tensor):
+    #     """second derivative of the activation function"""
+    #     return -2 * torch.tanh(x) * self.activation_derivative(x)
+
+    def activation_derivative_last(self, x: torch.Tensor):
+        """derivative of the activation function"""
+        e = torch.exp(x)
+        return e / (1.0 + e)
+
+    def activation_second_derivative_last(self, x: torch.Tensor):
+        """second derivative of the activation function"""
+        e = torch.exp(x)
+        return e / torch.square(1.0 + e)
+
     def forward(self, x: torch.Tensor):
         """forward call, must be nonnegative"""
-        return super().forward(x) + 1.0
+        return super().forward(x)
 
 
 class CertificateModuleWithDerivatives(torch.nn.Module):
@@ -78,14 +96,20 @@ class CertificateModuleWithDerivatives(torch.nn.Module):
         for layer in self.module:
             out.append(layer(out[-1]))
 
-        z = [out[1], out[3], out[5]]  # outputs of linear layers, we need these
+        z = [out[1], out[3]]  # outputs of linear layers, we need these
 
         # compute the activation derivatives
         dsigma = [self.module.activation_derivative(
             zi).unsqueeze(1) for zi in z]
         d2sigma = [self.module.activation_second_derivative(
             zi).unsqueeze(1) for zi in z]
-
+        z.append(out[5])
+        dsigma.append(
+            self.module.activation_derivative_last(z[2]).unsqueeze(1)
+        )
+        d2sigma.append(
+            self.module.activation_second_derivative_last(z[2]).unsqueeze(1)
+        )
         # extract the weight matrices, add a dimension in front because of the
         # batch computation
         w = [self.module[i].weight.unsqueeze(0) for i in range(0, 5, 2)]
@@ -94,7 +118,8 @@ class CertificateModuleWithDerivatives(torch.nn.Module):
         b = [w[0]]
         for i in range(0, 2):
             b.append((w[i+1] * dsigma[i]) @ b[i])
-        # final Jacobian
+
+        # final the final Jacobian
         jacobian = dsigma[2] @ b[2]
 
         # find Jacobians fij of z[i] with respect to a[j]
@@ -108,7 +133,7 @@ class CertificateModuleWithDerivatives(torch.nn.Module):
             (f31 * d2sigma[1] * torch.permute(b[1], (0, 2, 1))) @ b[1] + \
             (d2sigma[2] * torch.permute(b[2], (0, 2, 1))) @ b[2]
 
-        return out[-1] + 1.0, jacobian, hessian  # don't forget to add 1!
+        return out[-1], jacobian, hessian
 
 
 class GeneratorModule(torch.nn.Module):

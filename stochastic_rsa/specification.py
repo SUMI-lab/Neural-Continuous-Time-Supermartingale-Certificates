@@ -1,6 +1,7 @@
 """Provides a data class for reach-state-avoid specification"""
 import dataclasses
-from .membership_sets import MembershipSet, SublevelSet
+import torch
+from .aabb import AABBSet
 
 
 @dataclasses.dataclass
@@ -8,10 +9,9 @@ class Specification:
     """
     Reach-state-avoid specification as defined in the paper
     """
-    time_homogenous: bool
-    interest_set: MembershipSet
-    initial_set: MembershipSet
-    unsafe_set: MembershipSet
-    target_set: SublevelSet
+    interest_set: AABBSet
+    initial_set: AABBSet
+    unsafe_set: AABBSet
+    target_set: AABBSet
     reach_avoid_probability: float
     stay_probability: float
