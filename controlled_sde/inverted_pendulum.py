@@ -68,6 +68,8 @@ class PendulumDiffusion(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, _u: torch.Tensor):
         """forward function of the inverted pendulum diffusion module"""
+        # split the input x into velocity phi and angle theta
+        phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
         # compute the drift components for velocity phi and angle theta
         g_phi = torch.full((x.shape[0], 1), self.sigma, device=x.device)
         g_theta = torch.zeros_like(g_phi)
@@ -91,3 +93,6 @@ class InvertedPendulum(ControlledSDE):
         diffusion = PendulumDiffusion(volatility_scale)
         # construct the SDE
         super().__init__(policy, drift, diffusion, "diagonal", "ito")
+
+    def n_dimensions(self) -> int:
+        return 2
