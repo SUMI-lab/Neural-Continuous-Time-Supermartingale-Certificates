@@ -71,7 +71,7 @@ class PendulumDiffusion(torch.nn.Module):
         # split the input x into velocity phi and angle theta
         phi, _ = torch.split(x, split_size_or_sections=(1, 1), dim=1)
         # compute the drift components for velocity phi and angle theta
-        g_phi = torch.full((x.shape[0], 1), self.sigma, device=x.device) * phi
+        g_phi = torch.full((x.shape[0], 1), self.sigma, device=x.device)
         g_theta = torch.zeros_like(g_phi)
         # combine and return
         return torch.cat([g_phi, g_theta], dim=1)
@@ -87,7 +87,7 @@ class InvertedPendulum(ControlledSDE):
 
     def __init__(self, policy: torch.nn.Module,
                  pendulum_data: PendulumData = default_pendulum_data,
-                 volatility_scale: float = 0.5):
+                 volatility_scale: float = 2.0):
         # initialize the drift and diffusion modules
         drift = PendulumDrift(pendulum_data)
         diffusion = PendulumDiffusion(volatility_scale)

@@ -1,6 +1,5 @@
 """Provides a data class for reach-state-avoid specification"""
 import dataclasses
-import torch
 from .aabb import AABBSet
 
 

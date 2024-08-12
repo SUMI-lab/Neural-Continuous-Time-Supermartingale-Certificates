@@ -49,7 +49,7 @@ net = rsa.CertificateModule(device=device)
 
 # set the boundaries of the sets
 global_bounds = np.array([[[-20.0, -2*np.pi], [20.0, 2*np.pi]]])
-initial_bounds = np.array([[[-0.5, 7/8*np.pi], [0.5, 9/8*np.pi]]])
+initial_bounds = np.array([[[-1.0, 3/4*np.pi], [1.0, 5/4*np.pi]]])
 target_bounds = np.array([[[-4.0, -np.pi/2], [4.0, np.pi/2]]])
 unsafe_bounds = np.array([
     [[-20.0, -2*np.pi], [-10.0, -3/2*np.pi]],
@@ -77,8 +77,10 @@ spec = rsa.Specification(
 certificate = rsa.SupermartingaleCertificate(sde, spec, net, device)
 
 # train the certificate
-certificate.train(n_epochs=10000, batch_size=64, lr=1e-3,
-                  verify_every_n=1000, verifier_mesh_size=400, zeta=1.0)
+certificate.train(n_epochs=10000, batch_size=256, lr=1e-3,
+                  verify_every_n=1000, verifier_mesh_size=400, zeta=1.0,
+                  regularizer_lambda=1e-1
+                  )
 
 # Initialize the batch of starting states
 x0 = torch.tile(torch.tensor([[STARTING_SPEED, STARTING_ANGLE]],
@@ -104,10 +106,10 @@ with torch.no_grad():
     )
     grid = grid.reshape(2, -1).T
     out = certificate.net(grid).detach().numpy().reshape(101, 101)
-    # scaling_factor = certificate.net(
-    #     initial_set.sample(1000)
-    # ).detach().numpy().max()
-    # out /= scaling_factor
+    scaling_factor = certificate.net(
+        initial_set.sample(1000)
+    ).detach().numpy().max()
+    out /= scaling_factor
     min_level = int(np.floor(np.log10(out.min()) * 5))
     max_level = int(np.ceil(np.log10(out.max()) * 5)) + 1
     c = ax1.contourf(

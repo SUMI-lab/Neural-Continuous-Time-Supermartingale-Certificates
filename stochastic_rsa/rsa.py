@@ -6,6 +6,7 @@ from auto_LiRPA.perturbations import PerturbationLpNorm
 from controlled_sde import ControlledSDE
 from .specification import Specification
 from .nets import CertificateModule, GeneratorModule, CertificateModuleWithDerivatives
+from .cells import AdaptiveCellSystem
 
 
 def lerp(x1: float, x2: float, rate: float):
@@ -86,13 +87,14 @@ class SupermartingaleCertificate():
         # compute the threshold constants
         alpha_ra = starting_level
         beta_ra = alpha_ra / (1.0 - prob_ra) / verification_slack
-        beta_s = alpha_ra / 2.0
+        beta_s = alpha_ra * 0.9
         alpha_s = beta_s * (1.0 - prob_s) * verification_slack
+        zeta_counter = zeta
 
         # x_star = torch.zeros((1, n_dim), device=self.device)
 
         # initialize the counterexample collections
-        decrease_counterexamples = torch.zeros((1, n_dim), device=self.device)
+        decrease_counterexamples = torch.empty((0, n_dim), device=self.device)
         x_outer_counterexamples = torch.empty((0, n_dim), device=self.device)
         x_inner_counterexamples = torch.empty((0, n_dim), device=self.device)
         n_decrease_counterexamples, n_counterexamples = 0, 0
@@ -123,6 +125,7 @@ class SupermartingaleCertificate():
             0.5 * (x_L + x_U),
             PerturbationLpNorm(x_L=x_L, x_U=x_U)
         )
+        cell_magnitudes = 0.5 * global_set.magnitudes / verifier_mesh_size
         # cells = BoundedTensor(
         #     cells, ptb=PerturbationLpNorm(, x_l)
         # )
@@ -161,15 +164,11 @@ class SupermartingaleCertificate():
             # filter indices
             x_0 = initial_set.contains(batch)
             x_u = unsafe_set.contains(batch)
-            x_inner = target_set.contains(batch)
-            x_decrease = torch.logical_and(
+            x_g = target_set.contains(batch)
+            x_d = torch.logical_and(
                 v <= beta_ra,
                 v > alpha_s
             ).squeeze(-1)
-            # x_outer = torch.logical_and(
-            #     (v <= beta_ra).squeeze(-1),
-            #     torch.logical_not(target_set.contains(batch))
-            # )
 
             # find the loss over the initial set points
             init_loss = torch.clamp(v[x_0] - alpha_ra, min=0.0).sum()
@@ -178,15 +177,17 @@ class SupermartingaleCertificate():
             safety_loss = torch.clamp(beta_ra - v[x_u], min=0.0).sum()
 
             # find the loss over the interior of the target set
-            goal_loss_in = torch.clamp(v[x_inner] - beta_s, min=0.0).sum()
-
-            # find the loss outside of the target set
-            # torch.clamp(beta_s - v[x_outer], min=0.0).sum()
-            goal_loss_out = 0.0
+            goal_loss = torch.clamp(v[x_g] - beta_s, min=0.0).sum()
 
             # find the loss for the infinitesimal generator for reach-avoid
-            gen_values = generator(batch[x_decrease])
+            gen_values = generator(batch[x_d])
             decrease_loss = torch.clamp(gen_values + zeta, min=0.0).sum()
+            # if torch.numel(decrease_counterexamples) > 0:
+            #     # print(decrease_counterexamples)
+            #     p = torch.ones((decrease_counterexamples.shape[0],))
+            #     index = p.multinomial(num_samples=batch_size, replacement=True)
+            #     decrease_loss += torch.clamp(
+            #         generator(decrease_counterexamples[index]) + zeta_counter, min=0.0).sum()
             decrease_loss *= decrease_lambda
 
             # find the loss regularizer
@@ -199,18 +200,14 @@ class SupermartingaleCertificate():
                     )
 
             # find the total loss
-            loss = init_loss + safety_loss + \
-                goal_loss_out + goal_loss_in + \
-                decrease_loss + \
-                regularizer  # + \
-            # batch_size * V(x_star)
+            loss = init_loss + safety_loss + goal_loss + decrease_loss
+            loss += regularizer
 
             # update the progress bar with the loss information
             progress_bar.set_description(
                 f"L0:{init_loss: 6.3f}, "
                 f"Lu:{safety_loss: 8.3f}, "
-                f"Lgo:{goal_loss_out: 6.3f}, "
-                f"Lgi:{goal_loss_in: 6.3f}, "
+                f"Lg:{goal_loss: 6.3f}, "
                 f"Ld:{decrease_loss: 8.3f}, "
                 f"reg:{regularizer.item(): 6.3f}"
             )
@@ -240,13 +237,11 @@ class SupermartingaleCertificate():
                 init_upper = torch.max(
                     cell_ub[initial_set.contains(cells), :]
                 ).item()
-                print(f"init: {init_upper}")
 
                 # next, lower bound the certificate value at the unsafe states
                 unsafe_lower = torch.min(
                     cell_lb[unsafe_set.contains(cells), :]
                 ).item()
-                print(f"unsafe: {unsafe_lower}")
 
                 # compute the estimated reach-avoid probability
                 # print(init_upper, unsafe_lower)
@@ -267,44 +262,15 @@ class SupermartingaleCertificate():
                 beta_s_candidate = torch.max(
                     cell_lb[target_set.boundary_contains(
                         cells,
-                        0.5 * global_set.magnitudes / verifier_mesh_size
+                        cell_magnitudes
                     ), :]
                 ).item()
                 alpha_s_candidate = torch.min(
                     cell_ub[target_set.contains(cells), :]
                 ).item()
 
-                # outer_cells = cell_lb[non_target_area.contains(cells), :]
-                # if torch.numel(outer_cells) > 0:
-                #     beta_s_candidate_out = torch.min(
-                #         cell_lb[non_target_area.contains(cells), :]
-                #     ).item()
-                # else:
-                #     beta_s_candidate_out = beta_s_candidate_in
-                # target_upper = self._bound_estimate(
-                #     [[0.0, 0.0]],
-                #     [[-2.0, -torch.pi/3.0]],
-                #     [[2.0, torch.pi/3.0]],
-                #     bound_lower=False,
-                #     method="alpha-CROWN"
-                # )[1].item()
-                # print(beta_s_candidate_in, beta_s_candidate_out)
-                # if beta_s < beta_s_candidate:
-                #     beta_s = beta_s_candidate
-                #     alpha_s = beta_s * (1 - prob_s) * verification_slack
-                # sub_alpha_s_set.threshold = alpha_s_candidate
-                # sub_beta_s_set.threshold = beta_s_candidate
-                # min(beta_s_candidate_in, beta_s_candidate_out)
-                print(
-                    f"alpha_s: {alpha_s_candidate}, beta_s: {beta_s_candidate}")
-                # if beta_s_candidate < sub_alpha_ra_set.threshold:
-                #     sub_beta_s_set.threshold = lerp(
-                #         beta_s_candidate,
-                #         sub_beta_s_set.threshold,
-                #         0.5
-                #     )
-                #     sub_alpha_s_set.threshold = sub_beta_s_set.threshold * (
-                #         1.0 - prob_stay)
+                # print(
+                #     f"alpha_s: {alpha_s_candidate}, beta_s: {beta_s_candidate}")
 
                 prob_s_estimate = max(
                     1.0 - alpha_s_candidate/beta_s_candidate, 0.0)
@@ -312,33 +278,10 @@ class SupermartingaleCertificate():
                     f"Stay condition is satisfied with "
                     f"probability at least {prob_s_estimate: 5.3f}."
                 )
+
                 if 1.0 - prob_s_estimate > (1.0 - prob_s) * verification_slack:
-                    beta_s = beta_s_candidate
+                    beta_s = min(beta_s_candidate, alpha_ra * 0.9)
                     alpha_s = beta_s * (1.0 - prob_s) * verification_slack
-
-                # mask = torch.logical_and(
-                #     target_set.contains(cells),
-                #     (cell_ub >= beta_s).squeeze()
-                # )
-                # x_inner_counterexamples = cells[mask, :]
-                # n_counterexamples = x_inner_counterexamples.shape[0]
-                # if n_counterexamples > 0:
-                #     print(
-                #         f"Found {n_counterexamples} potential "
-                #         "goal condition violations inside of the target set."
-                #     )
-
-                # mask = torch.logical_and(
-                #     spec.target_set.complement.contains(cells),
-                #     (cell_lb <= sub_beta_s_set.threshold).squeeze()
-                # )
-                # x_outer_counterexamples = cells[mask, :]
-                # n_counterexamples = x_outer_counterexamples.shape[0]
-                # if n_counterexamples > 0:
-                #     print(
-                #         f"Found {n_counterexamples} potential "
-                #         "goal condition violations outside of the target set."
-                #     )
 
                 # Verification step 4. decrease condition
                 mask = torch.logical_and(
@@ -348,30 +291,24 @@ class SupermartingaleCertificate():
                 decrease_cells = cells[mask, :]
                 # print(sub_alpha_s_set.threshold, sub_beta_ra_set.threshold)
                 if torch.numel(decrease_cells) > 0:
-                    bounded_decrease_cells = BoundedTensor(
+
+                    cell_system = AdaptiveCellSystem()
+                    decrease_counterexamples = cell_system.verify(
+                        self.decrease_verifier,
                         decrease_cells,
-                        PerturbationLpNorm(
-                            x_L=cells.ptb.x_L[mask, :],
-                            x_U=cells.ptb.x_U[mask, :]
-                        )
+                        cell_magnitudes
                     )
-                    _, ub = self.decrease_verifier.compute_bounds(
-                        bounded_decrease_cells,
-                        bound_lower=False,
-                        method="IBP"
-                    )
-                    mask = ub.squeeze() >= 0.0
-                    # print(decrease_cells[mask, :])
-                    decrease_counterexamples = decrease_cells[mask, :]
+
                     n_decrease_counterexamples = decrease_counterexamples.shape[0]
                     if n_decrease_counterexamples > 0:
-                        # zeta += lerp(zeta, torch.max(ub).item(), 0.1)
+
+                        # zeta = lerp(zeta, torch.max(ub).item(), 0.1)
                         # else:
+                        # zeta_counter = lerp(
+                        # zeta_counter, torch.max(ub).item(), 0.1)
                         print(
                             f"Found {n_decrease_counterexamples} "
                             "potential decrease condition violations. "
-                            f"Maximum value is {torch.max(ub).item(): 5.3f}. "
-                            f"zeta is now {zeta: 5.3f}"
                         )
 
                 print(
