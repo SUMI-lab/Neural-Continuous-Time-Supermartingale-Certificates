@@ -13,7 +13,7 @@ install it yourself.
 
 ## How to Use
 
-TODO: add a how to use guide.
+Run the [GBM](run_gbm.py) and [Inverted Pendulum](run_pendulum.py) scripts. The data will be saved to .csv files (copies are included in the results directory).
 
 ## How to Cite
 
