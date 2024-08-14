@@ -13,7 +13,7 @@ install it yourself.
 
 ## How to Use
 
-Run the [GBM](run_gbm.py) and [Inverted Pendulum](run_pendulum.py) scripts. The data will be saved to .csv files (copies are included in the results directory).
+Run the [GBM](run_gbm.py) and [Inverted Pendulum](run_pendulum.py) scripts. The data will be saved to .csv files (copies are included in the results directory). The columns are: random seed, runtime, verification result, final epoch number.
 
 ## How to Cite
 
