@@ -7,49 +7,23 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from matplotlib.patches import Rectangle
 import controlled_sde
-from rl_agent import TanhPolicy
 import stochastic_rsa as rsa
 
 torch.set_default_dtype(torch.float32)
 torch.use_deterministic_algorithms(True)
 
-DEVICE_STR = "cpu"           # Torch device
-
-STARTING_ANGLE = torch.pi    # starting angle for plotting sample paths
-STARTING_SPEED = 0.0         # starting angular velocity
-DURATION = 60                # seconds
-FPS = 20                     # frames per second
-T_SIZE = DURATION * FPS + 1  # number of time steps for each sample path
-
-# Initialize the device for torch
-if DEVICE_STR == "auto":
-    if torch.cuda.is_available() and torch.backends.cuda.is_built():
-        DEVICE_STR = "cuda"
-    elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-        DEVICE_STR = "mps"
-    else:
-        DEVICE_STR = "cpu"
-device = torch.device(DEVICE_STR)
-
-# load the policy
-rl_policy_net = TanhPolicy(2, 1, 64, device=device)
-rl_policy_net.load_state_dict(torch.load(
-    "rl_agent/pendulum_policy.pt",
-    map_location=device,
-    weights_only=True
-))
-rl_policy_net.requires_grad_(False)
+device = torch.device("cpu")
 
 # initialize the controlled SDE
-sde = controlled_sde.InvertedPendulum(rl_policy_net)
+sde = controlled_sde.GBM()
+net = rsa.CertificateModule(device=device)
 
 # set the boundaries of the sets
-global_bounds = np.array([[[-20.0, -2*np.pi], [20.0, 2*np.pi]]])
-initial_bounds = np.array([[[-1.0, 3/4*np.pi], [1.0, 5/4*np.pi]]])
-target_bounds = np.array([[[-4.0, -np.pi/2], [4.0, np.pi/2]]])
+global_bounds = np.array([[[-100.0, -100.0], [100.0, 100.0]]])
+initial_bounds = np.array([[[45, -55], [55, -45]]])
+target_bounds = np.array([[[-25.0, -25.0], [25.0, 25.0]]])
 unsafe_bounds = np.array([
-    [[-20.0, -2*np.pi], [-10.0, -3/2*np.pi]],
-    [[10.0, 3/2*np.pi], [20.0, 2*np.pi]]
+    [[-100.0, -100.0], [-80.0, 100.0]],
 ])
 
 # create the sets
@@ -69,11 +43,12 @@ spec = rsa.Specification(
     0.9
 )
 
-npr.seed(0)
+npr.seed(1)
 seeds = npr.randint(1, 1e5, size=(5,))
 for seed in seeds:
     torch.manual_seed(seed)
     npr.seed(seed)
+
     # create the certificate
     net = rsa.CertificateModule(device=device)
     certificate = rsa.SupermartingaleCertificate(sde, spec, net, device)
@@ -81,24 +56,26 @@ for seed in seeds:
     # train the certificate
     t = time.time()
     result = certificate.train(verify_every_n=1000,
-                               verifier_mesh_size=400,
+                               verifier_mesh_size=200,
                                zeta=1.0,
                                regularizer_lambda=1e-1,
-                               verification_slack=4,
+                               verification_slack=4
                                )
     t = time.time() - t
     result = (seed, t, result[0], result[1])
-    with open('pendulum.csv', 'a') as file:
+    with open('gbm.csv', 'a') as file:
         writer = csv.writer(file, dialect='excel')
         writer.writerow(result)
 
 # Initialize the batch of starting states
-x0 = torch.tile(torch.tensor([[STARTING_SPEED, STARTING_ANGLE]],
-                             device=device), dims=(4, 1))
-ts = torch.linspace(0, 0.1*DURATION, T_SIZE, device=device)
+x0 = torch.tile(
+    torch.tensor([[50.0, -50.0]], device=device),
+    dims=(4, 1)
+)
+ts = torch.linspace(0, 100.0, 1000, device=device)
 
 #
-sample_paths = sde.sample(x0, ts, method="srk").squeeze()
+sample_paths = sde.sample(x0, ts, method="euler").squeeze()
 
 # Plot
 fig, ax1 = plt.subplots(1, 1)

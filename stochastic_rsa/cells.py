@@ -2,7 +2,7 @@ import torch
 from auto_LiRPA import BoundedTensor, PerturbationLpNorm, BoundedModule
 
 
-class AdaptiveCellSystem():
+class CellVerificationSystem():
     def __init__(self, max_depth=10):
         super().__init__()
         self.max_depth = max_depth
@@ -29,17 +29,21 @@ class AdaptiveCellSystem():
         )
         mask = ub.squeeze() >= 0.0
         counterexamples = locations[mask]
-        print(
-            f"Could not verify decrease at {counterexamples.shape[0]} cells. Splitting further")
-        if depth < self.max_depth and torch.numel(counterexamples) > 0:
-            new_cells = torch.empty((0, locations.shape[1]))
-            half_m = 0.5 * magnitude
-            for _, loc in enumerate(counterexamples):
-                new_cells = torch.cat(
-                    (new_cells, loc + half_m * self.corners),
-                    dim=0
-                )
-            counterexamples = self.verify(
-                verifier, new_cells, half_m, depth+1
+
+        if torch.numel(counterexamples) > 0:
+            print(
+                f"Could not verify decrease at {counterexamples.shape[0]} "
+                "cells. Splitting further"
             )
+            if depth < self.max_depth:
+                new_cells = torch.empty((0, locations.shape[1]))
+                half_m = 0.5 * magnitude
+                for _, loc in enumerate(counterexamples):
+                    new_cells = torch.cat(
+                        (new_cells, loc + half_m * self.corners),
+                        dim=0
+                    )
+                counterexamples = self.verify(
+                    verifier, new_cells, half_m, depth+1
+                )
         return counterexamples
