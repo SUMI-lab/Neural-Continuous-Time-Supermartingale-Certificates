@@ -22,4 +22,13 @@ TODO: add a link to the published paper.
 
 ## Contributors
 
-TODO: add a list of contributors.
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="33.33%"><a href="https://github.com/greg-neustroev"><img src="https://avatars.githubusercontent.com/u/32451432?v=4?s=100" width="100px;" alt="Greg Neustroev"/><br /><b>Greg Neustroev</b></a></td>
+      <td align="center" valign="top" width="33.33%"><a href="https://github.com/mircogiacobbe"><img src="https://avatars.githubusercontent.com/u/1612237?v=4?s=100" width="100px;" alt="Mirco Giacobbe"/><br /><b>Mirco Giacobbe</b></a></td>
+      <td align="center" valign="top" width="33.33%"><a href="https://github.com/AnnaLukina"><img src="https://avatars.githubusercontent.com/u/17516017?v=4?s=100" width="100px;" alt="Anna Lukina"/><br /><b>Anna Lukina</b></a></td>
+    </tr>
+  </tbody>
+</table>
+
