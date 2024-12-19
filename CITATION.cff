@@ -1,16 +1,26 @@
 cff-version: 1.2.0
-title: Neural Supermartingale Certificates for Reach-Stay-Avoidance in Continuous Time
+title: Neural Continuous-Time Supermartingale Certificates
 message: >-
   If you use this software, please cite: (a) the original paper,
   (b) this software using the metadata from this file.
 type: software
 authors:
-  - given-names: Anonymous
-    family-names: Submission
-    email: submission@anonymo.us
-    affiliation: Anonymous Affiliation
-    orcid: 'https://orcid.org/0000-0000-0000-0000'
-repository-code: 'https://link-to-the-published-code'
+  - given-names: Grigory
+    family-names: Neustroev
+    email: g.neustroev@tudelft.nl
+    affiliation: Delft University of Technology, the Netherlands
+    orcid: 'https://orcid.org/0000-0002-7706-7778'
+  - given-names: Mirco
+    family-names: Giacobbe
+    email: m.giacobbe@bham.ac.uk
+    affiliation: University of Birmingham, UK
+    orcid: 'https://orcid.org/0000-0001-8180-0904'
+  - given-names: Anna
+    family-names: Lukina
+    email: a.lukina@tudelft.nl
+    affiliation: Delft University of Technology, the Netherlands
+    orcid: 'https://orcid.org/0000-0001-9525-0333'
+repository-code: 'https://github.com/SUMI-lab/Neural-Continuous-Time-Supermartingale-Certificates'
 abstract: >-
   This software contains code for the paper _Neural Supermartingale Certificates for Reach-Stay-Avoidance in Continuous Time_
 keywords:
