@@ -1,3 +1,8 @@
+# We trained the policy with Python 3.12 because this is the minimum version for `torchrl`.
+# The main code requires Python 3.11 as this is the maximum version supported by `auto_LiRPA`
+# at the time. We include this script for transparency, but it is not used in the experiments,
+# but only to produce a neural poicy (saved as `pendulum_policy.pt`). If you want to train your
+# own policy, make sure that your version of Python is compatible!
 from typing import Optional
 from collections import defaultdict
 from torchrl.envs import (
