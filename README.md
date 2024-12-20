@@ -1,6 +1,6 @@
 # Neural Continuous-Time Supermartingale Certificates
 
-This repository contains code for the paper _Neural Supermartingale Certificates for Reach-Stay-Avoidance in Continuous Time_ by ANONYMOUS AUTHORS.
+This repository contains code for the paper _Neural Continuous-Time Supermartingale Certificates_ by Grigory Neustroev, Mirco Giacobbe, Anna Lukina.
 
 ## How to Install
 
@@ -14,11 +14,6 @@ install it yourself.
 ## How to Use
 
 Run the [GBM](run_gbm.py) and [Inverted Pendulum](run_pendulum.py) scripts. The data will be saved to .csv files (copies are included in the results directory). The columns are: random seed, runtime, verification result, final epoch number.
-
-## How to Cite
-
-TODO: add the citations to the paper and the repository.
-TODO: add a link to the published paper.
 
 ## Contributors
 
