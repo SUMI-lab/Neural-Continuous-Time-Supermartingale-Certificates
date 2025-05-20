@@ -1,6 +1,17 @@
 # Neural Continuous-Time Supermartingale Certificates
 
-This repository contains code for the paper _Neural Continuous-Time Supermartingale Certificates_ by Grigory Neustroev, Mirco Giacobbe, Anna Lukina.
+This repository contains code for the paper _Neural Continuous-Time Supermartingale Certificates_ by Grigory Neustroev, Mirco Giacobbe, Anna Lukina, published in AAAI 2025. To cute this work you can use:
+```
+@inproceedings{neustroev2025neural,
+  title={Neural continuous-time supermartingale certificates},
+  author={Neustroev, Grigory and Giacobbe, Mirco and Lukina, Anna},
+  booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume={39},
+  number={26},
+  pages={27538--27546},
+  year={2025}
+}
+```
 
 ## How to Install
 
@@ -26,4 +37,5 @@ Run the [GBM](run_gbm.py) and [Inverted Pendulum](run_pendulum.py) scripts. The 
     </tr>
   </tbody>
 </table>
+
 
