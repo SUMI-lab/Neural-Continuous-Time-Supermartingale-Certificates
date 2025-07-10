@@ -1,6 +1,6 @@
 # Neural Continuous-Time Supermartingale Certificates
 
-This repository contains code for the paper _Neural Continuous-Time Supermartingale Certificates_ by Grigory Neustroev, Mirco Giacobbe, Anna Lukina, published in AAAI 2025. To cute this work you can use:
+This repository contains code for the paper _Neural Continuous-Time Supermartingale Certificates_ by Grigory Neustroev, Mirco Giacobbe, Anna Lukina, published in AAAI 2025. To cite this work you can use:
 ```
 @inproceedings{neustroev2025neural,
   title={Neural continuous-time supermartingale certificates},
